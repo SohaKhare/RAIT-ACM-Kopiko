@@ -104,14 +104,20 @@ def standardize_location(text: str) -> str:
                 {
                     "role": "system",
                     "content": (
-                        "Convert Indian location names into standard English spellings. "
-                        "Return only the cleaned English place name."
+                        "You are a strict location cleaner. Convert the input Indian location name into standard English spelling. "
+                        "OUTPUT ONLY THE CLEANED WORD OR PLACE NAME. Never explain, never ask questions, never write sentences, and do not include conversational text."
                     ),
                 },
                 {"role": "user", "content": text},
             ],
         )
         standardized = (completion.choices[0].message.content or text).strip()
+        
+        # Guardrail: If Gemini hallucinates a long sentence, reject it and fall back to the raw text
+        if len(standardized.split()) > 3:
+            print(f"⚠️ Gemini leaked conversational text, falling back to raw: {text!r}")
+            return text.strip()
+            
         print(f"🌍 Standardized {text!r} -> {standardized!r}")
         return standardized
     except Exception as error:
@@ -164,12 +170,21 @@ async def whatsapp_webhook(
 
     if "MediaUrl0" in form_data and "audio" in media_content_type:
         print("Audio media detected. Downloading audio from Twilio...")
-        audio_response = requests.get(
-            str(media_url),
-            auth=(settings.ACCOUNT_SID, settings.AUTH_TOKEN),
-        )
-        audio_response.raise_for_status()
-        print(f"Audio download complete. Bytes received: {len(audio_response.content)}")
+        if isinstance(media_url, str) and media_url.startswith("http"):
+            print("Downloading remote Twilio audio bytes dynamically...")
+            audio_response = requests.get(
+                media_url,
+                auth=(settings.ACCOUNT_SID, settings.AUTH_TOKEN),
+            )
+            audio_response = requests.get(
+                str(media_url),
+                auth=(settings.ACCOUNT_SID, settings.AUTH_TOKEN),
+            )
+            audio_response.raise_for_status()
+            audio_payload = audio_response.content
+            print(f"Audio download complete. Bytes received: {len(audio_payload)}")
+        else:
+            audio_payload = media_url
 
         prompt = (
             "Analyze the audio file. If the user speaks in Hindi or any regional language, "
@@ -211,7 +226,7 @@ async def whatsapp_webhook(
         session["lang"] = "English"
 
         twiml.message(
-            "Welcome to Kopiko! 🌾\nPlease select a language from the menu.\n"
+            "Welcome to Bhoomi! 🌾\nPlease select a language from the menu.\n"
             "(If the menu doesn't appear, you can type: English, Hindi, Marathi, Urdu, or Tamil)"
         )
 
@@ -277,10 +292,17 @@ async def whatsapp_webhook(
         district = session.get("district_val", "")
         session["state"] = "START"
 
+        cleaned_village = village.lower().replace(".", "").strip()
+        if cleaned_village in ["none", "no", "nil", "koi nahi", "not sure"]:
+            village = "none"
         place = village if village.lower() != "none" else district
 
         try:
             result = get_groundwater_data(state, place)
+            if (result["statusCode"] != 200 or not result["data"]):
+                if "mumbai" in place.lower():
+                    print("⚠️ No direct data for Mumbai City. Redirecting to Mumbai Suburban...")
+                    result = get_groundwater_data(state, "Mumbai Suburban")
             if result["statusCode"] == 200 and result["data"]:
                 data = result["data"][0]
                 latest_reading = data.get("latestReading") or data.get("dataValue", "N/A")
