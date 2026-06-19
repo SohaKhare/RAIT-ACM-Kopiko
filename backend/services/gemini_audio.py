@@ -1,6 +1,9 @@
 import base64
 import json
+import os
 from pathlib import Path
+import subprocess
+import tempfile
 from typing import Any
 
 from openai import OpenAI
@@ -89,8 +92,12 @@ class GeminiConversationService:
         farmer_context: FarmerContext | None = None,
         tool_definitions: list[ToolDefinition] | None = None,
     ) -> ConversationTurnResult:
-        audio_format = self._resolve_audio_format(mime_type=mime_type, filename=filename)
-        base64_audio = base64.b64encode(audio_bytes).decode("utf-8")
+        prepared_audio_bytes, audio_format = self._prepare_audio_for_gemini(
+            audio_bytes=audio_bytes,
+            mime_type=mime_type,
+            filename=filename,
+        )
+        base64_audio = base64.b64encode(prepared_audio_bytes).decode("utf-8")
 
         user_message = {
             "role": "user",
@@ -356,6 +363,7 @@ class GeminiConversationService:
 
     @staticmethod
     def _resolve_audio_format(mime_type: str, filename: str | None = None) -> str:
+        normalized_mime_type = mime_type.split(";", 1)[0].strip().lower()
         mime_map = {
             "audio/wav": "wav",
             "audio/x-wav": "wav",
@@ -369,8 +377,8 @@ class GeminiConversationService:
             "audio/opus": "ogg",
         }
 
-        if mime_type in mime_map:
-            return mime_map[mime_type]
+        if normalized_mime_type in mime_map:
+            return mime_map[normalized_mime_type]
 
         if filename:
             extension = Path(filename).suffix.lower().lstrip(".")
@@ -388,3 +396,74 @@ class GeminiConversationService:
                 return extension_map[extension]
 
         raise ValueError(f"Unsupported audio format for Gemini input: {mime_type}")
+
+    def _prepare_audio_for_gemini(
+        self,
+        audio_bytes: bytes,
+        mime_type: str,
+        filename: str | None = None,
+    ) -> tuple[bytes, str]:
+        audio_format = self._resolve_audio_format(mime_type=mime_type, filename=filename)
+
+        if audio_format in {"wav", "mp3"}:
+            return audio_bytes, audio_format
+
+        print(
+            f"Converting frontend audio from {mime_type!r} to mp3 for Gemini compatibility."
+        )
+        converted_audio_bytes = self._convert_audio_with_ffmpeg(
+            audio_bytes=audio_bytes,
+            source_filename=filename or f"input.{audio_format}",
+            target_extension="mp3",
+        )
+        print(f"Audio conversion complete. Converted bytes: {len(converted_audio_bytes)}")
+        return converted_audio_bytes, "mp3"
+
+    @staticmethod
+    def _convert_audio_with_ffmpeg(
+        audio_bytes: bytes,
+        source_filename: str,
+        target_extension: str,
+    ) -> bytes:
+        source_suffix = Path(source_filename).suffix or ".bin"
+        source_file = tempfile.NamedTemporaryFile(delete=False, suffix=source_suffix)
+        target_file = tempfile.NamedTemporaryFile(delete=False, suffix=f".{target_extension}")
+
+        try:
+            source_file.write(audio_bytes)
+            source_file.flush()
+            source_file.close()
+            target_file.close()
+
+            command = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                source_file.name,
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-b:a",
+                "32k",
+                target_file.name,
+            ]
+            subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            with open(target_file.name, "rb") as converted_file:
+                return converted_file.read()
+        except subprocess.CalledProcessError as error:
+            stderr_output = error.stderr.decode("utf-8", errors="ignore")
+            raise ValueError(f"Audio conversion failed: {stderr_output}") from error
+        finally:
+            for temp_path in [source_file.name, target_file.name]:
+                try:
+                    os.remove(temp_path)
+                except FileNotFoundError:
+                    pass

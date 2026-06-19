@@ -14,6 +14,7 @@ const isRecording = ref(false)
 const errorMessage = ref('')
 const mediaRecorder = ref<MediaRecorder | null>(null)
 const recordedChunks = ref<Blob[]>([])
+const recordedMimeType = ref('audio/webm')
 
 const apiBase = computed(() => runtimeConfig.public.apiBase || 'http://127.0.0.1:8000')
 const labels = computed(() => {
@@ -52,6 +53,33 @@ const labels = computed(() => {
 
 function setStatus(nextStatus: string) {
   statusText.value = nextStatus
+}
+
+function pickRecordingMimeType() {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/ogg;codecs=opus',
+    'audio/webm',
+    'audio/ogg',
+  ]
+
+  for (const candidate of candidates) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(candidate)) {
+      return candidate
+    }
+  }
+
+  return ''
+}
+
+function extensionFromMimeType(mimeType: string) {
+  if (mimeType.includes('ogg')) {
+    return 'ogg'
+  }
+  if (mimeType.includes('mp4')) {
+    return 'mp4'
+  }
+  return 'webm'
 }
 
 async function sendTextMessage() {
@@ -101,7 +129,13 @@ async function toggleRecording() {
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    const recorder = new MediaRecorder(stream)
+    const mimeType = pickRecordingMimeType()
+    const recorder = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream)
+
+    recordedMimeType.value = recorder.mimeType || mimeType || 'audio/webm'
+    console.log('Recorder mime type:', recordedMimeType.value)
 
     recordedChunks.value = []
     recorder.ondataavailable = (event) => {
@@ -138,10 +172,18 @@ async function sendAudioMessage() {
   setStatus(labels.value.loading)
 
   try {
-    const audioBlob = new Blob(recordedChunks.value, { type: 'audio/webm' })
+    const mimeType = recordedMimeType.value || 'audio/webm'
+    const fileExtension = extensionFromMimeType(mimeType)
+    const audioBlob = new Blob(recordedChunks.value, { type: mimeType })
     const formData = new FormData()
-    formData.append('file', audioBlob, 'farmer-audio.webm')
+    formData.append('file', audioBlob, `farmer-audio.${fileExtension}`)
     formData.append('language', selectedLanguage.value)
+
+    console.log('Uploading audio blob:', {
+      mimeType,
+      size: audioBlob.size,
+      extension: fileExtension,
+    })
 
     const result = await $fetch<{ reply_text?: string; response?: string }>(
       `${apiBase.value}/llm/audio`,

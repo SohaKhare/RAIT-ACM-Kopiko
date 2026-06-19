@@ -5,6 +5,7 @@ from services.gemini_audio import (
     ToolCallRequest,
     ToolDefinition,
 )
+from services.llm import process_audio_message, process_text_message
 
 __all__ = [
     "ConversationTurnResult",
@@ -12,4 +13,6 @@ __all__ = [
     "GeminiConversationService",
     "ToolCallRequest",
     "ToolDefinition",
+    "process_audio_message",
+    "process_text_message",
 ]

@@ -4,8 +4,11 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   runtimeConfig: {
     public: {
-      apiBase: 'http://127.0.0.1:8000',
+      apiBase: 'http://127.0.0.1:4001',
     },
+  },
+  devServer: {
+    port: 4000,
   },
   app: {
     head: {

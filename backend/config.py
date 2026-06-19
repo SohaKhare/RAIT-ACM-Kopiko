@@ -9,12 +9,10 @@ class Settings(BaseSettings):
     SARVAM_API_KEY: str = ""      # Sarvam AI for multilingual results
     GEMINI_API_KEY: str = ""
     GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
-    GEMINI_MODEL: str = "gemma-4-31b-it"
+    GEMINI_MODEL: str = "gemini-3.1-flash-lite"
     CORS_ORIGINS: list[str] = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:4174",
-        "http://127.0.0.1:4174",
+        "http://localhost:4000",
+        "http://127.0.0.1:4000",
     ]
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

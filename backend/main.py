@@ -1,3 +1,6 @@
+import json
+
+import requests
 from fastapi import FastAPI, Form, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 import json
@@ -8,11 +11,13 @@ from services.groundwater import get_groundwater_data
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 from config import settings
-from routes import health
+from routes import groundwater, health, llm
 from services import GeminiConversationService
 from sarvamai import SarvamAI
 
-app = FastAPI(title="Backend API")
+
+def create_app() -> FastAPI:
+    app = FastAPI(title="Backend API")
 
 # In-memory session storage (use a database like Supabase/Redis for production)
 user_sessions = {}
@@ -76,18 +81,23 @@ TRANSLATIONS = {
     }
 }
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS or ["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-app.include_router(health.router)
-app.include_router(groundwater.router)
+    app.include_router(health.router)
+    app.include_router(groundwater.router)
 app.include_router(mandi.router)
 app.include_router(location.router)
+    app.include_router(llm.router)
+    return app
+
+
+app = create_app()
 twilio_client = Client(settings.ACCOUNT_SID, settings.AUTH_TOKEN)
 gemini_service = GeminiConversationService()
 sarvam_client = SarvamAI(api_subscription_key=settings.SARVAM_API_KEY)
@@ -101,25 +111,36 @@ SARVAM_LANG_MAP = {
     "Urdu": "ur-PK" # Urdu is usually ur-PK or ur-IN depending on support
 }
 
+
 @app.post("/webhook")
 async def whatsapp_webhook(request: Request, From: str = Form(...), To: str = Form(...)):
     user_phone = From
     bot_phone = To # Dynamic Bot Phone from Request
-    
     form_data = await request.form()
     user_message = form_data.get("Body", "").strip()
     user_message_lower = user_message.lower()
     
     print(f"📩 Incoming from {user_phone} to {bot_phone}: '{user_message}'")
-    
-    # ----------------------------------------------------------------
-    # 🎙️ AUDIO PROCESSING VIA GEMINI
-    # ----------------------------------------------------------------
-    if "MediaUrl0" in form_data and "audio" in form_data.get("MediaContentType0", ""):
-        audio_url = form_data["MediaUrl0"]
+    media_url = form_data.get("MediaUrl0")
+    media_content_type = form_data.get("MediaContentType0", "")
 
-        audio_response = requests.get(audio_url, auth=(settings.ACCOUNT_SID, settings.AUTH_TOKEN))
+    print("\n--- Incoming WhatsApp Webhook ---")
+    print(f"From: {user_phone}")
+    print(f"Body: {user_message!r}")
+    print(f"Has media: {'MediaUrl0' in form_data}")
+    print(f"Media content type: {media_content_type or 'None'}")
+    if media_url:
+        print(f"Media URL present: {media_url}")
+
+    if "MediaUrl0" in form_data and "audio" in media_content_type:
+        audio_url = form_data["MediaUrl0"]
+        print("Audio media detected. Downloading audio from Twilio...")
+        audio_response = requests.get(
+            audio_url,
+            auth=(settings.ACCOUNT_SID, settings.AUTH_TOKEN),
+        )
         audio_response.raise_for_status()
+        print(f"Audio download complete. Bytes received: {len(audio_response.content)}")
 
         prompt = (
             "Analyze the audio file. If the user speaks in Hindi or any regional language, "
@@ -136,13 +157,13 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), To: str = Fo
             filename="incoming_voice.ogg",
             prompt=prompt,
         )
-
         user_message = audio_turn.reply_text.strip()
         print(f"🎙️ Gemini Voice Transcript: '{user_message}'")
-    
-    # ----------------------------------------------------------------
-    # 📲 ROUTING AND CONVERSATION LOGIC
-    # ----------------------------------------------------------------
+    elif "MediaUrl0" in form_data:
+        print("Media was attached, but it was not recognized as audio. Skipping transcription.")
+    else:
+        print("No media attached. Processing as text-only message.")
+
     user_message_lower = user_message.lower()
     
     # Initialize session if not exists
