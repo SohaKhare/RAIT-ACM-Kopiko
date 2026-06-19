@@ -20,7 +20,7 @@ const apiBase = computed(() => runtimeConfig.public.apiBase || 'http://127.0.0.1
 const labels = computed(() => {
   if (selectedLanguage.value === 'hi') {
     return {
-      title: 'जलधार परीक्षण',
+      title: 'परीक्षण',
       subtitle: 'जेम्मा प्रतिक्रिया यहां आते ही दिखेगी',
       idle: 'तैयार',
       loading: 'प्रतिक्रिया बन रही है...',
@@ -36,7 +36,7 @@ const labels = computed(() => {
   }
 
   return {
-    title: 'JalDhar Test',
+    title: 'Test',
     subtitle: 'Gemma response appears here as it comes in',
     idle: 'Ready',
     loading: 'Generating response...',
