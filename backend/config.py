@@ -5,7 +5,8 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str = ""
     ACCOUNT_SID: str = ""
     AUTH_TOKEN: str = ""
-    BUTTONS_CONTENT_SID: str = ""
+    LIST_CONTENT_SID: str = ""    # Use this for 5+ languages
+    SARVAM_API_KEY: str = ""      # Sarvam AI for multilingual results
     GEMINI_API_KEY: str = ""
     GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
     GEMINI_MODEL: str = "gemma-4-31b-it"

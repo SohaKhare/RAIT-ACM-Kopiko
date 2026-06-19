@@ -1,0 +1,147 @@
+{
+  "crop_water_requirements": [
+    {
+      "crop": "Paddy (Rice)",
+      "crop_hi": "धान",
+      "kharif": true,
+      "duration_days": 110,
+      "water_requirement_mm": 1250,
+      "expected_yield_kg_per_ha": 4000,
+      "msp_rs_per_quintal": 2300,
+      "drought_tolerance": "low",
+      "category": "high_water"
+    },
+    {
+      "crop": "Maize",
+      "crop_hi": "मक्का",
+      "kharif": true,
+      "duration_days": 100,
+      "water_requirement_mm": 500,
+      "expected_yield_kg_per_ha": 3500,
+      "msp_rs_per_quintal": 2225,
+      "drought_tolerance": "medium",
+      "category": "medium_water"
+    },
+    {
+      "crop": "Bajra (Pearl Millet)",
+      "crop_hi": "बाजरा",
+      "kharif": true,
+      "duration_days": 80,
+      "water_requirement_mm": 350,
+      "expected_yield_kg_per_ha": 1800,
+      "msp_rs_per_quintal": 2500,
+      "drought_tolerance": "high",
+      "category": "low_water"
+    },
+    {
+      "crop": "Jowar (Sorghum)",
+      "crop_hi": "ज्वार",
+      "kharif": true,
+      "duration_days": 105,
+      "water_requirement_mm": 500,
+      "expected_yield_kg_per_ha": 2000,
+      "msp_rs_per_quintal": 3180,
+      "drought_tolerance": "high",
+      "category": "medium_water"
+    },
+    {
+      "crop": "Ragi (Finger Millet)",
+      "crop_hi": "रागी",
+      "kharif": true,
+      "duration_days": 95,
+      "water_requirement_mm": 310,
+      "expected_yield_kg_per_ha": 1500,
+      "msp_rs_per_quintal": 3800,
+      "drought_tolerance": "high",
+      "category": "low_water"
+    },
+    {
+      "crop": "Groundnut",
+      "crop_hi": "मूंगफली",
+      "kharif": true,
+      "duration_days": 105,
+      "water_requirement_mm": 510,
+      "expected_yield_kg_per_ha": 1800,
+      "msp_rs_per_quintal": 6000,
+      "drought_tolerance": "medium",
+      "category": "medium_water"
+    },
+    {
+      "crop": "Cotton",
+      "crop_hi": "कपास",
+      "kharif": true,
+      "duration_days": 165,
+      "water_requirement_mm": 600,
+      "expected_yield_kg_per_ha": 1500,
+      "msp_rs_per_quintal": 7000,
+      "drought_tolerance": "medium",
+      "category": "medium_water"
+    },
+    {
+      "crop": "Soybean",
+      "crop_hi": "सोयाबीन",
+      "kharif": true,
+      "duration_days": 85,
+      "water_requirement_mm": 320,
+      "expected_yield_kg_per_ha": 1200,
+      "msp_rs_per_quintal": 4600,
+      "drought_tolerance": "medium",
+      "category": "low_water"
+    },
+    {
+      "crop": "Sesame (Til)",
+      "crop_hi": "तिल",
+      "kharif": true,
+      "duration_days": 85,
+      "water_requirement_mm": 150,
+      "expected_yield_kg_per_ha": 500,
+      "msp_rs_per_quintal": 8600,
+      "drought_tolerance": "high",
+      "category": "very_low_water"
+    },
+    {
+      "crop": "Sunflower",
+      "crop_hi": "सूरजमुखी",
+      "kharif": true,
+      "duration_days": 110,
+      "water_requirement_mm": 450,
+      "expected_yield_kg_per_ha": 1000,
+      "msp_rs_per_quintal": 7000,
+      "drought_tolerance": "medium",
+      "category": "medium_water"
+    },
+    {
+      "crop": "Black Gram (Urad)",
+      "crop_hi": "उड़द",
+      "kharif": true,
+      "duration_days": 65,
+      "water_requirement_mm": 280,
+      "expected_yield_kg_per_ha": 800,
+      "msp_rs_per_quintal": 7000,
+      "drought_tolerance": "high",
+      "category": "low_water"
+    },
+    {
+      "crop": "Green Gram (Moong)",
+      "crop_hi": "मूंग",
+      "kharif": true,
+      "duration_days": 60,
+      "water_requirement_mm": 250,
+      "expected_yield_kg_per_ha": 700,
+      "msp_rs_per_quintal": 7500,
+      "drought_tolerance": "high",
+      "category": "low_water"
+    },
+    {
+      "crop": "Red Gram (Arhar/Tur)",
+      "crop_hi": "अरहर",
+      "kharif": true,
+      "duration_days": 150,
+      "water_requirement_mm": 400,
+      "expected_yield_kg_per_ha": 1000,
+      "msp_rs_per_quintal": 7500,
+      "drought_tolerance": "high",
+      "category": "low_water"
+    }
+  ]
+}
