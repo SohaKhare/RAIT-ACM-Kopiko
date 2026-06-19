@@ -2,3 +2,6 @@ fastapi
 uvicorn[standard]
 pydantic
 pydantic-settings
+twilio
+google-genai
+requests
