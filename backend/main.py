@@ -8,7 +8,7 @@ from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 
 from config import settings
-from routes import groundwater, health, llm, location, mandi, weather
+from routes import groundwater, health, llm, location, mandi, weather, aggregator
 from services import GeminiConversationService
 from services.groundwater import get_groundwater_data
 
@@ -30,6 +30,7 @@ def create_app() -> FastAPI:
     app.include_router(location.router)
     app.include_router(llm.router)
     app.include_router(weather.router)
+    app.include_router(aggregator.router)
     return app
 
 

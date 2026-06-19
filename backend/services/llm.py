@@ -4,10 +4,18 @@ from services.gemini_audio import GeminiConversationService
 gemini_service = GeminiConversationService()
 
 
-def process_text_message(message_text: str, language: str | None = None) -> dict:
+def process_text_message(
+    message_text: str, 
+    language: str | None = None,
+    lat: float | None = None,
+    lng: float | None = None,
+    state: str | None = None,
+    district: str | None = None,
+) -> dict:
+    location_ctx = f" Farmer Location: {district or 'Unknown District'}, {state or 'Unknown State'} (Lat: {lat}, Lng: {lng})." if lat and lng else ""
     prompt = (
         f"Preferred response language: {language or 'auto'}. "
-        "Respond conversationally to the farmer's message. "
+        f"Respond conversationally to the farmer's message.{location_ctx} "
         "Keep the response concise and practical."
     )
     result = gemini_service.run_text_turn(
@@ -25,10 +33,15 @@ def process_audio_message(
     mime_type: str,
     filename: str,
     language: str | None = None,
+    lat: float | None = None,
+    lng: float | None = None,
+    state: str | None = None,
+    district: str | None = None,
 ) -> dict:
+    location_ctx = f" Farmer Location: {district or 'Unknown District'}, {state or 'Unknown State'} (Lat: {lat}, Lng: {lng})." if lat and lng else ""
     prompt = (
         f"Preferred response language: {language or 'auto'}. "
-        "Understand the farmer's spoken message and reply conversationally. "
+        f"Understand the farmer's spoken message and reply conversationally.{location_ctx} "
         "Keep the response concise and practical."
     )
     result = gemini_service.run_audio_turn(
