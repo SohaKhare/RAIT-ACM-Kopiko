@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import json
 
 import requests
-from routes import health, groundwater
+from routes import health, groundwater, mandi, location
 from twilio.rest import Client
 
 from config import settings
@@ -22,6 +22,8 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(groundwater.router)
+app.include_router(mandi.router)
+app.include_router(location.router)
 twilio_client = Client(settings.ACCOUNT_SID, settings.AUTH_TOKEN)
 gemini_service = GeminiConversationService()
 

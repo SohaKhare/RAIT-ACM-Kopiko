@@ -206,6 +206,7 @@
 
 import requests
 from datetime import date as dt_date
+from typing import Optional
 from supabase import create_client
 from config import settings
 
@@ -217,145 +218,123 @@ DEFAULT_MARKET = [100009]
 supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 
 
-def _resolve_location(location: str):
+def _resolve_location(state: Optional[str], district: Optional[str], market: Optional[str]):
     """
-    Search Supabase: market -> district -> state.
-    Uses the search_location RPC function for a single optimized query.
-    Returns resolved IDs and names.
+    Resolve state/district/market strings to IDs from Supabase.
+    Hierarchy enforcement: market -> district -> state (child overrides parent).
     """
-    try:
-        result = supabase.rpc("search_location", {"query": location}).execute()
-        if result.data and len(result.data) > 0:
-            row = result.data[0]
+    state_id = DEFAULT_STATE
+    district_id = DEFAULT_DISTRICT
+    market_id = DEFAULT_MARKET
+    state_name = "All States"
+    district_name = "All Districts"
+    market_name = "All Markets"
+
+    # 1. Resolve market first (highest priority)
+    if market:
+        result = (
+            supabase.table("markets")
+            .select("id, mkt_name, state_id, district_id")
+            .neq("id", 100009)
+            .ilike("mkt_name", f"%{market}%")
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            m = result.data[0]
+            market_id = [m["id"]]
+            market_name = m["mkt_name"]
+
+            # enforce hierarchy: market dictates district and state
+            if m.get("district_id"):
+                district_id = [m["district_id"]]
+                dt = supabase.table("districts").select("district_name").eq("id", m["district_id"]).limit(1).execute()
+                if dt.data:
+                    district_name = dt.data[0]["district_name"]
+
+            if m.get("state_id"):
+                state_id = m["state_id"]
+                st = supabase.table("states").select("state_name").eq("state_id", m["state_id"]).limit(1).execute()
+                if st.data:
+                    state_name = st.data[0]["state_name"]
+
             return {
-                "matched_level": row["matched_level"],
-                "state_id": row["state_id"],
-                "state_name": row["state_name"],
-                "district_id": [row["district_id"]] if row["district_id"] else DEFAULT_DISTRICT,
-                "district_name": row["district_name"],
-                "market_id": [row["market_id"]] if row["market_id"] else DEFAULT_MARKET,
-                "market_name": row["market_name"],
+                "state_id": state_id, "state_name": state_name,
+                "district_id": district_id, "district_name": district_name,
+                "market_id": market_id, "market_name": market_name,
             }
-    except Exception:
-        # Fallback to individual queries if RPC not available
-        return _resolve_location_fallback(location)
 
-    return _defaults()
+    # 2. Resolve district (medium priority)
+    if district:
+        result = (
+            supabase.table("districts")
+            .select("id, district_name, state_id")
+            .neq("id", 100007)
+            .ilike("district_name", f"%{district}%")
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            d = result.data[0]
+            district_id = [d["id"]]
+            district_name = d["district_name"]
 
+            # enforce hierarchy: district dictates state
+            if d.get("state_id"):
+                state_id = d["state_id"]
+                st = supabase.table("states").select("state_name").eq("state_id", d["state_id"]).limit(1).execute()
+                if st.data:
+                    state_name = st.data[0]["state_name"]
 
-def _resolve_location_fallback(location: str):
-    """Fallback: individual Supabase table queries."""
-    # 1. Try market
-    market = (
-        supabase.table("markets")
-        .select("id, mkt_name, state_id, district_id")
-        .neq("id", 100009)
-        .ilike("mkt_name", f"%{location}%")
-        .limit(1)
-        .execute()
-    )
-    if market.data:
-        m = market.data[0]
-        state_name = "All States"
-        district_name = "All Districts"
+            return {
+                "state_id": state_id, "state_name": state_name,
+                "district_id": district_id, "district_name": district_name,
+                "market_id": market_id, "market_name": market_name,
+            }
 
-        if m.get("state_id"):
-            st = supabase.table("states").select("state_name").eq("state_id", m["state_id"]).limit(1).execute()
-            if st.data:
-                state_name = st.data[0]["state_name"]
+    # 3. Resolve state (lowest priority)
+    if state:
+        result = (
+            supabase.table("states")
+            .select("state_id, state_name")
+            .neq("state_id", 100006)
+            .ilike("state_name", f"%{state}%")
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            s = result.data[0]
+            state_id = s["state_id"]
+            state_name = s["state_name"]
 
-        if m.get("district_id"):
-            dt = supabase.table("districts").select("district_name").eq("id", m["district_id"]).limit(1).execute()
-            if dt.data:
-                district_name = dt.data[0]["district_name"]
+            return {
+                "state_id": state_id, "state_name": state_name,
+                "district_id": district_id, "district_name": district_name,
+                "market_id": market_id, "market_name": market_name,
+            }
 
-        return {
-            "matched_level": "market",
-            "state_id": m.get("state_id", DEFAULT_STATE),
-            "state_name": state_name,
-            "district_id": [m["district_id"]] if m.get("district_id") else DEFAULT_DISTRICT,
-            "district_name": district_name,
-            "market_id": [m["id"]],
-            "market_name": m["mkt_name"],
-        }
-
-    # 2. Try district
-    district = (
-        supabase.table("districts")
-        .select("id, district_name, state_id")
-        .neq("id", 100007)
-        .ilike("district_name", f"%{location}%")
-        .limit(1)
-        .execute()
-    )
-    if district.data:
-        d = district.data[0]
-        state_name = "All States"
-
-        if d.get("state_id"):
-            st = supabase.table("states").select("state_name").eq("state_id", d["state_id"]).limit(1).execute()
-            if st.data:
-                state_name = st.data[0]["state_name"]
-
-        return {
-            "matched_level": "district",
-            "state_id": d.get("state_id", DEFAULT_STATE),
-            "state_name": state_name,
-            "district_id": [d["id"]],
-            "district_name": d["district_name"],
-            "market_id": DEFAULT_MARKET,
-            "market_name": "All Markets",
-        }
-
-    # 3. Try state
-    state = (
-        supabase.table("states")
-        .select("state_id, state_name")
-        .neq("state_id", 100006)
-        .ilike("state_name", f"%{location}%")
-        .limit(1)
-        .execute()
-    )
-    if state.data:
-        s = state.data[0]
-        return {
-            "matched_level": "state",
-            "state_id": s["state_id"],
-            "state_name": s["state_name"],
-            "district_id": DEFAULT_DISTRICT,
-            "district_name": "All Districts",
-            "market_id": DEFAULT_MARKET,
-            "market_name": "All Markets",
-        }
-
-    return _defaults()
-
-
-def _defaults():
+    # No match — all defaults
     return {
-        "matched_level": None,
-        "state_id": DEFAULT_STATE,
-        "state_name": "All States",
-        "district_id": DEFAULT_DISTRICT,
-        "district_name": "All Districts",
-        "market_id": DEFAULT_MARKET,
-        "market_name": "All Markets",
+        "state_id": state_id, "state_name": state_name,
+        "district_id": district_id, "district_name": district_name,
+        "market_id": market_id, "market_name": market_name,
     }
 
 
-def get_mandi_data(location: str):
+def get_mandi_data(state: Optional[str] = None, district: Optional[str] = None, market: Optional[str] = None):
     """
-    Accepts a location string (city/village/district/state in English).
-    Searches Supabase: market -> district -> state.
+    Accepts optional state, district, market strings.
+    Resolves IDs from Supabase with hierarchy enforcement.
     Returns API JSON with resolved_location metadata.
     """
-    resolved = _resolve_location(location)
+    resolved = _resolve_location(state, district, market)
     today = dt_date.today().isoformat()
 
     url = "https://api.agmarknet.gov.in/v1/dashboard-data/"
     headers = {
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (compatible; Kopiko/1.0)"
     }
 
     payload = {
@@ -381,8 +360,6 @@ def get_mandi_data(location: str):
 
     return {
         "resolved_location": {
-            "matched_level": resolved["matched_level"],
-            "query": location,
             "state": resolved["state_name"],
             "district": resolved["district_name"],
             "market": resolved["market_name"]

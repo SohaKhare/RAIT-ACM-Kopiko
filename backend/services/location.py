@@ -1,0 +1,56 @@
+import requests
+import re
+
+
+def _clean_location_string(loc: str) -> str:
+    if not loc:
+        return ""
+    # Remove common suffixes that break DB matching (e.g., "Tawang district" -> "Tawang", "Bengaluru Urban" -> "Bengaluru")
+    loc = re.sub(r'(?i)\b(district|urban|rural|nagar|city|town)\b', '', loc)
+    return loc.strip()
+
+
+def reverse_geocode(lat: float, lng: float):
+    """
+    Reverse geocode lat/lng to city, district, state using Nominatim (OpenStreetMap).
+    Free, no API key needed. Rate limit: 1 req/sec.
+    """
+    resp = requests.get(
+        "https://nominatim.openstreetmap.org/reverse",
+        params={
+            "lat": lat, 
+            "lon": lng, 
+            "format": "json", 
+            "addressdetails": 1,
+            "accept-language": "en"  # Force English to avoid regional scripts (Urdu, Hindi, etc.)
+        },
+        headers={"User-Agent": "Kopiko/1.0 (agricultural-advisory)"},
+        timeout=5,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    address = data.get("address", {})
+
+    # Nominatim handles UTs (like Delhi) differently, often omitting 'state' or 'state_district'.
+    # We fallback to other available geographic identifiers.
+    city = address.get("city") or address.get("town") or address.get("village") or address.get("suburb", "")
+    
+    # District fallback: state_district -> county -> city district
+    district = address.get("state_district") or address.get("county") or address.get("city_district", "")
+    
+    # State fallback: state -> state_code -> ISO3166-2-lvl4 -> city
+    state = address.get("state")
+    if not state:
+        iso_state = address.get("ISO3166-2-lvl4", "")
+        if iso_state.startswith("IN-"):
+            # e.g., "IN-DL" -> "Delhi" mapping or just use city name for UTs
+            state_codes = {"IN-DL": "Delhi", "IN-CH": "Chandigarh"}
+            state = state_codes.get(iso_state, city)
+        else:
+            state = address.get("state_code", city)
+
+    return {
+        "city": _clean_location_string(city),
+        "district": _clean_location_string(district),
+        "state": _clean_location_string(state),
+    }
