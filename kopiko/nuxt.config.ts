@@ -2,6 +2,7 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+  css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
       apiBase: 'http://127.0.0.1:4001',
@@ -12,11 +13,13 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: 'JalDhar Test',
+      title: 'Kopiko - Voice Advisory',
       meta: [
-        { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
-        { name: 'theme-color', content: '#101010' },
-      ],
-    },
-  },
+        { charset: 'utf-8' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover' },
+        { name: 'theme-color', content: '#FAF7F2' },
+        { name: 'description', content: 'Voice-first guided conversation farm advisory powered by Web Speech APIs' }
+      ]
+    }
+  }
 })
