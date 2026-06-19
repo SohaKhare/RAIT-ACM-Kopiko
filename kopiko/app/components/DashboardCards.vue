@@ -89,7 +89,7 @@ const price = '₹2,400 / quintal'
   width: 100%;
   background-color: var(--card-bg, #2E8B57);
   color: var(--text-card, #F4EFE6);
-  border-radius: 1rem; /* rounded-2xl */
+  border-radius: 20rem; /* rounded-2xl */
   padding: 1.25rem 1.5rem;
   display: flex;
   flex-direction: column;

@@ -17,10 +17,10 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
 
 export const LANGUAGES = [
   { code: 'en-IN', name: 'English' },
-  { code: 'hi-IN', name: 'Hindi' },
-  { code: 'mr-IN', name: 'Marathi' },
-  { code: 'ur-IN', name: 'Urdu' },
-  { code: 'ta-IN', name: 'Tamil' }
+  { code: 'hi-IN', name: 'हिंदी' },
+  { code: 'mr-IN', name: 'मराठी' },
+  { code: 'ur-IN', name: 'اردو' },
+  { code: 'ta-IN', name: 'தமிழ்' }
 ];
 
 export async function simulateGeminiTranslation(textKey: string, langCode: string): Promise<string> {
@@ -30,6 +30,41 @@ export async function simulateGeminiTranslation(textKey: string, langCode: strin
 }
 
 export const CARD_TRANSLATIONS: Record<string, Record<string, string>> = {
+  'select_mandi': {
+    'en-IN': 'Select a mandi manually (Optional)',
+    'hi-IN': 'मैन्युअल रूप से एक मंडी चुनें (वैकल्पिक)',
+    'mr-IN': 'स्वतः एक मंडी निवडा (पर्यायी)',
+    'ur-IN': 'دستی طور پر ایک منڈی منتخب کریں (اختیاری)',
+    'ta-IN': 'மண்டியை கைமுறையாக தேர்ந்தெடுக்கவும் (விருப்பத்தேர்வு)'
+  },
+  'mandi_alpha': {
+    'en-IN': 'Mandi Alpha',
+    'hi-IN': 'मंडी अल्फा',
+    'mr-IN': 'मंडी अल्फा',
+    'ur-IN': 'منڈی الفا',
+    'ta-IN': 'மண்டி ஆல்பா'
+  },
+  'mandi_beta': {
+    'en-IN': 'Mandi Beta',
+    'hi-IN': 'मंडी बीटा',
+    'mr-IN': 'मंडी बीटा',
+    'ur-IN': 'منڈی بیٹا',
+    'ta-IN': 'மண்டி பீட்டா'
+  },
+  'mandi_gamma': {
+    'en-IN': 'Mandi Gamma',
+    'hi-IN': 'मंडी गामा',
+    'mr-IN': 'मंडी गामा',
+    'ur-IN': 'منڈی گاما',
+    'ta-IN': 'மண்டி காமா'
+  },
+  'district_average': {
+    'en-IN': 'District Average',
+    'hi-IN': 'जिला औसत',
+    'mr-IN': 'जिल्ह्याची सरासरी',
+    'ur-IN': 'ضلعی اوسط',
+    'ta-IN': 'மாவட்ட சராசரி'
+  },
   'hello': {
     'en-IN': 'Hello',
     'hi-IN': 'नमस्ते',
