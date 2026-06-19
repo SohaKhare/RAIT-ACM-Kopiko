@@ -1,0 +1,12 @@
+{
+    "variety_data": [
+        {
+            "id": 100021,
+            "variety_name": "All Varieties"
+        },
+        {
+            "id": 100022,
+            "variety_name": "Individual"
+        }
+    ]
+}

@@ -1,0 +1,172 @@
+{
+    "cmdt_data": [
+        {
+            "cmdt_id": 100001,
+            "cmdt_name": "All Commodities",
+            "cmdt_group_id": null,
+            "cmdt_type_flag": null
+        },
+        {
+            "cmdt_id": 28,
+            "cmdt_name": "Bajra(Pearl Millet/Cumbu)",
+            "cmdt_group_id": 1,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 29,
+            "cmdt_name": "Barley(Jau)",
+            "cmdt_group_id": 1,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 6,
+            "cmdt_name": "Bengal Gram(Gram)(Whole)",
+            "cmdt_group_id": 2,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 8,
+            "cmdt_name": "Black Gram(Urd Beans)(Whole)",
+            "cmdt_group_id": 2,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 111,
+            "cmdt_name": "Copra",
+            "cmdt_group_id": 3,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 15,
+            "cmdt_name": "Cotton",
+            "cmdt_group_id": 4,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 9,
+            "cmdt_name": "Green Gram(Moong)(Whole)",
+            "cmdt_group_id": 2,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 10,
+            "cmdt_name": "Groundnut",
+            "cmdt_group_id": 3,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 5,
+            "cmdt_name": "Jowar(Sorghum)",
+            "cmdt_group_id": 1,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 16,
+            "cmdt_name": "Jute",
+            "cmdt_group_id": 4,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 52,
+            "cmdt_name": "Lentil(Masur)(Whole)",
+            "cmdt_group_id": 2,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 4,
+            "cmdt_name": "Maize",
+            "cmdt_group_id": 1,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 12,
+            "cmdt_name": "Mustard",
+            "cmdt_group_id": 3,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 83,
+            "cmdt_name": "Niger Seed(Ramtil)",
+            "cmdt_group_id": 3,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 23,
+            "cmdt_name": "Onion",
+            "cmdt_group_id": 6,
+            "cmdt_type_flag": "TOP"
+        },
+        {
+            "cmdt_id": 2,
+            "cmdt_name": "Paddy(Common)",
+            "cmdt_group_id": 1,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 24,
+            "cmdt_name": "Potato",
+            "cmdt_group_id": 6,
+            "cmdt_type_flag": "TOP"
+        },
+        {
+            "cmdt_id": 30,
+            "cmdt_name": "Ragi(Finger Millet)",
+            "cmdt_group_id": 1,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 45,
+            "cmdt_name": "Red gram/Arhar/Tur(whole)",
+            "cmdt_group_id": 2,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 48,
+            "cmdt_name": "Safflower",
+            "cmdt_group_id": 3,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 11,
+            "cmdt_name": "Sesamum(Sesame,Gingelly,Til)",
+            "cmdt_group_id": 3,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 13,
+            "cmdt_name": "Soyabean",
+            "cmdt_group_id": 3,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 122,
+            "cmdt_name": "Sugarcane",
+            "cmdt_group_id": 10,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 14,
+            "cmdt_name": "Sunflower/Sunflower Seed",
+            "cmdt_group_id": 3,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 65,
+            "cmdt_name": "Tomato",
+            "cmdt_group_id": 6,
+            "cmdt_type_flag": "TOP"
+        },
+        {
+            "cmdt_id": 55,
+            "cmdt_name": "Toria",
+            "cmdt_group_id": 3,
+            "cmdt_type_flag": "MSP"
+        },
+        {
+            "cmdt_id": 1,
+            "cmdt_name": "Wheat",
+            "cmdt_group_id": 1,
+            "cmdt_type_flag": "MSP"
+        }
+    ]
+}

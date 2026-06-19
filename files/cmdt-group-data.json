@@ -1,0 +1,32 @@
+{
+    "cmdt_group_data": [
+        {
+            "id": 100000,
+            "cmdt_grp_name": "All Commodity Groups"
+        },
+        {
+            "id": 1,
+            "cmdt_grp_name": "Cereals"
+        },
+        {
+            "id": 4,
+            "cmdt_grp_name": "Fibre Crops"
+        },
+        {
+            "id": 3,
+            "cmdt_grp_name": "Oil Seeds"
+        },
+        {
+            "id": 2,
+            "cmdt_grp_name": "Pulses"
+        },
+        {
+            "id": 6,
+            "cmdt_grp_name": "Vegetables"
+        },
+        {
+            "id": 10,
+            "cmdt_grp_name": "Others"
+        }
+    ]
+}

@@ -1,0 +1,12 @@
+{
+    "grade_data": [
+        {
+            "id": 4,
+            "grade_name": "FAQ"
+        },
+        {
+            "id": 100011,
+            "grade_name": "Non FAQ & Others"
+        }
+    ]
+}
