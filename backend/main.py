@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Form, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
-from routes import health
+from routes import health, groundwater
 from twilio.rest import Client
 from config import settings
 import json
@@ -19,6 +19,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(groundwater.router)
 twilio_client = Client(settings.ACCOUNT_SID, settings.AUTH_TOKEN)
 gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
