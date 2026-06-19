@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     AUTH_TOKEN: str = ""
     BUTTONS_CONTENT_SID: str = ""
     GEMINI_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
+    GEMINI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    GEMINI_MODEL: str = "gemma-4-31b-it"
     CORS_ORIGINS: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
