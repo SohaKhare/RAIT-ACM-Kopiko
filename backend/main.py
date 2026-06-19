@@ -1,12 +1,14 @@
-from fastapi import FastAPI, Form, Response, Request
+from fastapi import FastAPI, Form, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+import json
+
+import requests
 from routes import health, groundwater
 from twilio.rest import Client
+
 from config import settings
-import json
-import os
-import requests
-from google import genai
+from routes import health
+from services import GeminiConversationService
 
 app = FastAPI(title="Backend API")
 
@@ -21,7 +23,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(groundwater.router)
 twilio_client = Client(settings.ACCOUNT_SID, settings.AUTH_TOKEN)
-gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+gemini_service = GeminiConversationService()
 
 @app.post("/webhook")
 async def whatsapp_webhook(request: Request, From: str = Form(...)):
@@ -35,34 +37,28 @@ async def whatsapp_webhook(request: Request, From: str = Form(...)):
     # ----------------------------------------------------------------
     if "MediaUrl0" in form_data and "audio" in form_data.get("MediaContentType0", ""):
         audio_url = form_data["MediaUrl0"]
-        
-        # 1. Download the voice note file from Twilio
+
         audio_response = requests.get(audio_url, auth=(settings.ACCOUNT_SID, settings.AUTH_TOKEN))
-        temp_audio_filename = "incoming_voice.ogg"
-        with open(temp_audio_filename, "wb") as f:
-            f.write(audio_response.content)
-            
-        # 2. Upload the file binary to Gemini using the files API
-        uploaded_audio = gemini_client.files.upload(file=temp_audio_filename)
-        
-        # 3. Ask Gemini to transcribe what the farmer said (Handles English/Hindi accents perfectly)
+        audio_response.raise_for_status()
+
         prompt = (
             "Analyze the audio file. If the user speaks in Hindi or any regional language, "
             "translate their meaning directly into the closest English command phrase. "
             "For example: 'Shuru karo' or 'शुरू करो' should be returned as 'start'. "
             "If they speak a number like 'four two one zero zero one', return '421001'. "
-            "Return ONLY the plain English text or number, with no punctuation or extra words."
+            "Return ONLY the plain English text or number, with no punctuation, no markdown, "
+            "and no extra words. Do not ask follow-up questions."
         )
-        gemini_response = gemini_client.models.generate_content(
-            model="gemini-3.1-flash-lite",
-            contents=[uploaded_audio, prompt]
+
+        audio_turn = gemini_service.run_audio_turn(
+            audio_bytes=audio_response.content,
+            mime_type=form_data.get("MediaContentType0", "audio/ogg"),
+            filename="incoming_voice.ogg",
+            prompt=prompt,
         )
-        
-        user_message = gemini_response.text.strip()
+
+        user_message = audio_turn.reply_text.strip()
         print(f"🎙️ Gemini Voice Transcript: '{user_message}'")
-        
-        # Cleanup file from Gemini cloud storage to keep things tidy
-        gemini_client.files.delete(name=uploaded_audio.name)
     
     # ----------------------------------------------------------------
     # 📲 ROUTING AND CONVERSATION LOGIC
@@ -102,5 +98,4 @@ async def whatsapp_webhook(request: Request, From: str = Form(...)):
         )
         return Response(status_code=200)
     
-
 
