@@ -1,5 +1,9 @@
 import requests
 import re
+from supabase import create_client
+from config import settings
+
+supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 
 
 def _clean_location_string(loc: str) -> str:
@@ -54,3 +58,22 @@ def reverse_geocode(lat: float, lng: float):
         "district": _clean_location_string(district),
         "state": _clean_location_string(state),
     }
+
+
+
+def mandis_by_district(district, state):
+    """
+    Fetches all mandis in a given district within a state.
+    """
+    # 1. Find the district ID by name
+    district_query = supabase.table("districts").select("id, district_name").ilike("district_name", f"%{district}%").limit(1).execute()
+    
+    if not district_query.data:
+        return []
+        
+    district_id = district_query.data[0]["id"]
+    
+    # 2. Fetch all markets (mandis) for this district
+    markets_query = supabase.table("markets").select("id, mkt_name").eq("district_id", district_id).execute()
+    
+    return [market["mkt_name"] for market in markets_query.data] if markets_query.data else []
