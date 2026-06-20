@@ -378,7 +378,7 @@ async def whatsapp_webhook(
                     f"{result['current_depth']}m\n"
 
                     f"🔮 Predicted Groundwater: "
-                    f"{result['predicted_depth']}m\n"
+                    f"{float(result['predicted_depth']):.2f}m\n"
 
                     f"📈 Expected Change: "
                     f"{forecast_change:+}m\n\n"

@@ -170,6 +170,10 @@ const handleDropdownChange = () => {
     speakText(`${helloText}. ${swipeDownText}`, selectedLanguage.value)
     return
   }
+  if (activeStep.value === -2) {
+    displayText.value = translateCardText('welcome_to_bhoomi', selectedLanguage.value)
+    return
+  }
   if (activeStep.value < 0) {
     activeStep.value = 0
   }
@@ -223,7 +227,7 @@ const handleTouchEnd = (e: TouchEvent) => {
 }
 
 // Text content
-const displayText = ref('Welcome to Kopiko')
+const displayText = ref('Welcome to Bhoomi')
 const transcript = ref('')
 
 // Location
@@ -698,28 +702,9 @@ const handleSpeakClick = () => {
 
 <template>
   <div class="app-container">
-    <!-- Initial Start Screen (Since browsers require click for audio) -->
-    <template v-if="activeStep === -2">
-      <div class="language-selection-screen">
-        <div class="welcome-card animate-fade-in">
-          <div class="logo-badge">Kopiko</div>
-          <h1 class="welcome-title">Welcome to Kopiko</h1>
-          <p class="welcome-subtitle">Your personal voice advisor for smart farming</p>
-          <button @click="startLanguageSelection" class="big-start-btn">
-            <span>Start Voice Assistant</span>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="btn-arrow" fill="currentColor">
-              <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </template>
-
     <!-- Main App Interface -->
-    <template v-else>
-      <!-- Header with Language Selector -->
-      <header class="top-bar">
-        <div class="logo">Kopiko</div>
+    <header class="top-bar">
+      <div class="logo">{{ translateCardText('bhoomi_title', selectedLanguage) }}</div>
         <div class="header-right">
           <select v-model="selectedLanguage" class="custom-select language-dropdown" @change="handleDropdownChange">
             <option v-for="lang in LANGUAGES" :key="lang.code" :value="lang.code">
@@ -831,14 +816,14 @@ const handleSpeakClick = () => {
           </button>
           
           <span class="mic-helper-text">
-            <template v-if="micState === 'idle' && activeStep === -1">Select Language</template>
-            <template v-else-if="micState === 'idle'">Tap to Speak</template>
-            <template v-else-if="micState === 'listening'">Tap to Stop</template>
-            <template v-else>Processing...</template>
+            <template v-if="micState === 'idle' && activeStep === -2">{{ translateCardText('tap_mic_to_start', selectedLanguage) }}</template>
+            <template v-else-if="micState === 'idle' && activeStep === -1">{{ translateCardText('select_language', selectedLanguage) }}</template>
+            <template v-else-if="micState === 'idle'">{{ translateCardText('tap_to_speak', selectedLanguage) }}</template>
+            <template v-else-if="micState === 'listening'">{{ translateCardText('tap_to_stop', selectedLanguage) }}</template>
+            <template v-else>{{ translateCardText('processing', selectedLanguage) }}</template>
           </span>
         </div>
       </footer>
-    </template>
   </div>
 </template>
 
