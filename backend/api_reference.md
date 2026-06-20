@@ -131,8 +131,34 @@ Provides direct access to historical/current groundwater levels from the Central
       }
     ]
   }
+  }
   ```
 
+### POST `/groundwater/ml`
+* **Description**: Fetch machine-learning predicted groundwater depth and health scoring for a specific state and district.
+* **Request Body** (JSON):
+  ```json
+  {
+    "state": "Gujarat",
+    "district": "Dang"
+  }
+  ```
+* **Example Request**:
+  ```bash
+  curl -X POST "http://localhost:4001/groundwater/ml" \
+       -H "Content-Type: application/json" \
+       -d '{"state": "Gujarat", "district": "Dang"}'
+  ```
+* **Response**:
+  ```json
+  {
+    "station": "District Average",
+    "current_depth": 1.54,
+    "predicted_depth": 4.03,
+    "health_score": 93.0,
+    "risk": "Safe"
+  }
+  ```
 ---
 
 ## 🏪 3. Mandi Data (AGMARKNET Raw Data)
