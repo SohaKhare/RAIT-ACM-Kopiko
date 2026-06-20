@@ -43,6 +43,22 @@ const priceTrend = ref('+0.0%')
 const price = ref('₹0 / quintal')
 const mspPrice = ref('₹0 / quintal')
 const loading = ref(true)
+const forecastTrends = ref<Array<{ labelKey: string; date: string; price: string }>>([])
+
+const getFutureDateString = (baseDateStr: string, daysToAdd: number): string => {
+  const d = new Date(baseDateStr)
+  d.setDate(d.getDate() + daysToAdd)
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+const formatDate = (dateStr: string): string => {
+  const d = new Date(dateStr)
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${months[d.getMonth()]} ${d.getFullYear()}`
+}
 
 const resolveCropName = (cropStr: string | null | undefined): string => {
   if (!cropStr) return 'paddy'
@@ -60,7 +76,7 @@ const resolveCropName = (cropStr: string | null | undefined): string => {
   if (cleaned.includes('soybean') || cleaned.includes('सोयाबीन') || cleaned.includes('சோயாபீன்')) return 'soybean'
   if (cleaned.includes('sesamum') || cleaned.includes('sesame') || cleaned.includes('तिल') || cleaned.includes('तीळ') || cleaned.includes('எள்')) return 'sesamum'
   if (cleaned.includes('sunflower') || cleaned.includes('सूर्यफूल') || cleaned.includes('सूरजमुखी') || cleaned.includes('சூரியகாந்தி')) return 'sunflower'
-  if (cleaned.includes('cotton') || cleaned.includes('कपास') || cleaned.includes('कापूस') || cleaned.includes('பруத்தி')) return 'cotton'
+  if (cleaned.includes('cotton') || cleaned.includes('कपास') || cleaned.includes('कापूस') || cleaned.includes('பருத்தி')) return 'cotton'
   if (cleaned.includes('niger') || cleaned.includes('कारळे') || cleaned.includes('रामतिल')) return 'nigerseed'
   
   return cropStr
@@ -68,6 +84,8 @@ const resolveCropName = (cropStr: string | null | undefined): string => {
 
 const fetchData = async () => {
   loading.value = true
+  let baseDate = '2026-06-20'
+  
   try {
     // 1. Fetch Mandi price comparison
     const resolvedCrop = resolveCropName(props.crop)
@@ -77,30 +95,71 @@ const fetchData = async () => {
     if (mspData && !mspData.detail) {
       price.value = `₹${Math.round(mspData.predicted_price).toLocaleString()} / quintal`
       mspPrice.value = `₹${Math.round(mspData.msp).toLocaleString()} / quintal`
-      priceTrend.value = `${mspData.gap_pct >= 0 ? '↑' : '↓'} ${Math.abs(mspData.gap_pct).toFixed(1)}% ${mspData.gap_pct >= 0 ? 'above' : 'below'} MSP`
+      
+      const trendText = mspData.gap_pct >= 0 
+        ? translateCardText('above_msp', props.lang) 
+        : translateCardText('below_msp', props.lang)
+      priceTrend.value = `${mspData.gap_pct >= 0 ? '↑' : '↓'} ${Math.abs(mspData.gap_pct).toFixed(1)}% ${trendText}`
+      
+      if (mspData.date) {
+        baseDate = mspData.date
+      }
     }
   } catch (err) {
     console.error('Error fetching crop economics in DashboardCards:', err)
   }
 
+  // 2. Fetch future price trend predictions (+30, +60, +90 days)
   try {
-    // 2. Fetch Groundwater Status
+    const resolvedCrop = resolveCropName(props.crop)
+    const stateVal = props.state || 'Maharashtra'
+    const dateM1 = getFutureDateString(baseDate, 30)
+    const dateM2 = getFutureDateString(baseDate, 60)
+    const dateM3 = getFutureDateString(baseDate, 90)
+
+    const [resM1, resM2, resM3] = await Promise.all([
+      fetch(`${config.public.apiBase}/predict?commodity=${resolvedCrop}&state=${stateVal}&date=${dateM1}`).then(r => r.json()),
+      fetch(`${config.public.apiBase}/predict?commodity=${resolvedCrop}&state=${stateVal}&date=${dateM2}`).then(r => r.json()),
+      fetch(`${config.public.apiBase}/predict?commodity=${resolvedCrop}&state=${stateVal}&date=${dateM3}`).then(r => r.json())
+    ])
+
+    const trends = []
+    if (resM1 && resM1.predicted_price && !resM1.detail) {
+      trends.push({ labelKey: 'next_month', date: dateM1, price: `₹${Math.round(resM1.predicted_price).toLocaleString()} / quintal` })
+    }
+    if (resM2 && resM2.predicted_price && !resM2.detail) {
+      trends.push({ labelKey: 'two_months', date: dateM2, price: `₹${Math.round(resM2.predicted_price).toLocaleString()} / quintal` })
+    }
+    if (resM3 && resM3.predicted_price && !resM3.detail) {
+      trends.push({ labelKey: 'three_months', date: dateM3, price: `₹${Math.round(resM3.predicted_price).toLocaleString()} / quintal` })
+    }
+    forecastTrends.value = trends
+  } catch (err) {
+    console.error('Error fetching future forecasts in DashboardCards:', err)
+    forecastTrends.value = []
+  }
+
+  try {
+    // 3. Fetch Groundwater Status
     const gwRes = await fetch(`${config.public.apiBase}/groundwater`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ state: props.state || 'Maharashtra', place: props.district || 'Pune' })
     })
     const gwData = await gwRes.json()
-    if (gwData && gwData.current_depth) {
-      groundwaterLevel.value = gwData.current_depth
-      groundwaterPercentage.value = Math.min(100, Math.max(0, (gwData.current_depth / 40) * 100))
+    if (gwData && gwData.data && gwData.data.length > 0) {
+      const station = gwData.data[0]
+      const depth = station.dataValue || 0
+      groundwaterLevel.value = depth
+      const maxDepth = station.wellDepth || 40
+      groundwaterPercentage.value = Math.min(100, Math.max(0, (depth / maxDepth) * 100))
     }
   } catch (err) {
     console.error('Error fetching groundwater status in DashboardCards:', err)
   }
 
   try {
-    // 3. Fetch Weather Data
+    // 4. Fetch Weather Data
     const weatherRes = await fetch(`${config.public.apiBase}/weather`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -168,8 +227,19 @@ watch(() => [props.crop, props.state, props.district, props.lat, props.lng], () 
           </div>
         </div>
         <div class="card-header" style="margin-top: 0.5rem; font-size: 0.9rem; opacity: 0.85; border-top: 1px solid rgba(250, 246, 238, 0.15); padding-top: 0.5rem;">
-          <span>Government MSP:</span>
+          <span>{{ translateCardText('government_msp', props.lang) }}:</span>
           <span>{{ mspPrice }}</span>
+        </div>
+        
+        <!-- Future Forecast Section -->
+        <div v-if="forecastTrends.length > 0" class="forecast-section">
+          <h3 class="forecast-title">📅 {{ translateCardText('price_forecast', props.lang) }}</h3>
+          <div class="forecast-grid">
+            <div v-for="item in forecastTrends" :key="item.labelKey" class="forecast-row">
+              <span class="forecast-label">{{ translateCardText(item.labelKey, props.lang) }} ({{ formatDate(item.date) }}):</span>
+              <span class="forecast-value">{{ item.price }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </template>
@@ -277,5 +347,41 @@ watch(() => [props.crop, props.state, props.district, props.lat, props.lng], () 
   font-weight: 700;
   margin-top: 0.35rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.forecast-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed rgba(250, 246, 238, 0.25);
+}
+
+.forecast-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  color: var(--text-card, #FAF6EE);
+  opacity: 0.95;
+}
+
+.forecast-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.forecast-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.forecast-label {
+  font-weight: 500;
+}
+
+.forecast-value {
+  font-weight: 700;
 }
 </style>

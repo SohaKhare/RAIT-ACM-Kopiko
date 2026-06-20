@@ -176,6 +176,55 @@ export const CARD_TRANSLATIONS: Record<string, Record<string, string>> = {
     'mr-IN': 'प्रक्रिया करत आहे...',
     'ur-IN': 'پروسیسنگ...',
     'ta-IN': 'செயலாக்குகிறது...'
+  },
+  'price_forecast': {
+    'en-IN': 'Price Trend Forecast',
+    'hi-IN': 'मूल्य प्रवृत्ति का अनुमान',
+    'mr-IN': 'किंमत अंदाज',
+    'ur-IN': 'قیمت کا رجحان',
+    'ta-IN': 'விலை போக்கு முன்னறிவிப்பு'
+  },
+  'next_month': {
+    'en-IN': 'Next Month',
+    'hi-IN': 'अगला महीना',
+    'mr-IN': 'पुढील महिना',
+    'ur-IN': 'اگلا مہینہ',
+    'ta-IN': 'அடுத்த மாதம்'
+  },
+  'two_months': {
+    'en-IN': 'In 2 Months',
+    'hi-IN': '2 महीने में',
+    'mr-IN': '२ महिन्यांत',
+    'ur-IN': '2 مہینوں میں',
+    'ta-IN': '2 மாதங்களில்'
+  },
+  'three_months': {
+    'en-IN': 'In 3 Months',
+    'hi-IN': '3 महीने में',
+    'mr-IN': '३ महिन्यांत',
+    'ur-IN': '3 مہینوں میں',
+    'ta-IN': '3 மாதங்களில்'
+  },
+  'government_msp': {
+    'en-IN': 'Government MSP',
+    'hi-IN': 'सरकारी एमएसपी (MSP)',
+    'mr-IN': 'शासकीय हमीभाव (MSP)',
+    'ur-IN': 'سرکاری ایم ایس پی',
+    'ta-IN': 'அரசு எம்.எஸ்.பி'
+  },
+  'above_msp': {
+    'en-IN': 'above MSP',
+    'hi-IN': 'एमएसपी से ऊपर',
+    'mr-IN': 'हमीभावापेक्षा जास्त',
+    'ur-IN': 'ایم ایس پی سے زیادہ',
+    'ta-IN': 'எம்.எஸ்.பி-க்கு மேல்'
+  },
+  'below_msp': {
+    'en-IN': 'below MSP',
+    'hi-IN': 'एमएसपी से कम',
+    'mr-IN': 'हमीभावापेक्षा कमी',
+    'ur-IN': 'ایم ایس پی سے کم',
+    'ta-IN': 'எம்.எஸ்.பி-க்கு கீழ்'
   }
 }
 
