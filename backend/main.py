@@ -11,7 +11,7 @@ from config import settings
 from routes import groundwater, health, llm, location, mandi, weather, aggregator, mandi_predict
 from services import GeminiConversationService
 from services.groundwater import get_groundwater_data
-from services.groundwater_ml import predict_groundwater
+from services.groundwater_ml import predict_groundwater, get_villages
 
 
 def create_app() -> FastAPI:
@@ -53,7 +53,7 @@ TRANSLATIONS = {
     "English": {
         "ask_state": "Please enter your *State* (e.g., Andhra Pradesh):",
         "ask_district": "Got it: {}. Now, please enter your *District*:",
-        "ask_village": "District: {}. Finally, please enter your *Village* (type 'none' if unsure):",
+        "ask_village": "District: {}. Please select a *Village* or type *All* for a district average:\n\n{}",
         "searching": "Searching data for {}, {}...",
         "not_found": "Sorry, I couldn't find data for {}, {}. Type *start* to try again.",
     },
@@ -279,30 +279,47 @@ async def whatsapp_webhook(
         session["state_val"] = standardized_state
         session["state"] = "AWAITING_DISTRICT"
         twiml.message(translations["ask_district"].format(user_message))
+        print(f"DEBUG: State set to {standardized_state}")
         return Response(content=str(twiml), media_type="text/xml")
 
     if session["state"] == "AWAITING_DISTRICT":
         standardized_district = standardize_location(user_message)
         session["district_val"] = standardized_district
         session["state"] = "AWAITING_VILLAGE"
-        twiml.message(translations["ask_village"].format(user_message))
+        
+        state = session.get("state_val", "")
+        print(f"DEBUG: Fetching villages for State={state}, District={standardized_district}")
+        villages = get_villages(state, standardized_district)
+        print(f"DEBUG: Found villages: {villages}")
+        
+        if villages:
+            village_list = "\n".join([f"• {v}" for v in villages[:15]]) # Limit to 15 for readability
+            if len(villages) > 15:
+                village_list += "\n...and more."
+        else:
+            village_list = "No specific villages found. Type 'none' to continue."
+            
+        message_body = translations["ask_village"].format(user_message, village_list)
+        twiml.message(message_body)
         return Response(content=str(twiml), media_type="text/xml")
 
     if session["state"] == "AWAITING_VILLAGE":
-        standardized_village = standardize_location(user_message)
-        village = standardized_village
         state = session.get("state_val", "")
         district = session.get("district_val", "")
         session["state"] = "START"
 
-        cleaned_village = village.lower().replace(".", "").strip()
-        if cleaned_village in ["none", "no", "nil", "koi nahi", "not sure"]:
+        cleaned_input = user_message.lower().strip()
+        if cleaned_input in ["all", "सब", "सर्व", "تمام", "அனைத்தும்"]:
+            village = "all"
+        elif cleaned_input in ["none", "no", "nil", "koi nahi", "not sure"]:
             village = "none"
-        # place = village if village.lower() != "none" else district
+        else:
+            village = standardize_location(user_message)
 
         try:
-            # result = get_groundwater_data(state, place)
-            result = predict_groundwater(state=state,district=district,village=village)
+            print(f"DEBUG: Predicting for Village={village}, District={district}, State={state}")
+            result = predict_groundwater(state=state, district=district, village=village)
+            print(f"DEBUG: Prediction result: {result}")
             # if (result["statusCode"] != 200 or not result["data"]):
             #     if "mumbai" in place.lower():
             #         print("⚠️ No direct data for Mumbai City. Redirecting to Mumbai Suburban...")

@@ -68,6 +68,19 @@ def calculate_health_score(
         1
     )
 
+def get_villages(state: str, district: str):
+    data = history_df[
+        (history_df["State"].str.lower() == state.lower())
+        &
+        (history_df["District"].str.lower() == district.lower())
+    ]
+    if data.empty:
+        return []
+    
+    # Using 'Station Name' as 'Village'
+    villages = sorted(data["Station Name"].unique().tolist())
+    return villages
+
 def get_risk(score):
 
     if score >= 80:
@@ -86,84 +99,94 @@ def predict_groundwater(
     district: str,
     village: str | None = None
 ):
-
-    data = history_df[
+    # Filter by state and district first
+    base_data = history_df[
         (history_df["State"].str.lower() == state.lower())
         &
         (history_df["District"].str.lower() == district.lower())
     ]
 
-    if data.empty:
+    if base_data.empty:
         return None
 
-    latest = (
-        data
-        .sort_values("Date")
-        .iloc[-1]
-    )
+    # Determine which stations to process
+    if village and village.lower() not in ["all", "none"]:
+        stations = [v for v in base_data["Station Name"].unique() if v.lower() == village.lower()]
+        if not stations:
+            # Fallback to all if specific village not found
+            stations = base_data["Station Name"].unique().tolist()
+    else:
+        stations = base_data["Station Name"].unique().tolist()
 
-    now = datetime.now()
+    results = []
+    
+    for station in stations:
+        data = base_data[base_data["Station Name"] == station]
+        if data.empty:
+            continue
 
-    X = pd.DataFrame([{
-        "Latitude": latest["Latitude"],
-        "Longitude": latest["Longitude"],
-        "Well Depth": latest["Well Depth"],
+        latest = (
+            data
+            .sort_values("Date")
+            .iloc[-1]
+        )
 
-        "Year": now.year,
-        "Month": now.month,
+        now = datetime.now()
 
-        "State": latest["State"],
-        "District": latest["District"],
-        "Type of Well": latest["Type of Well"],
-        "Aquifer Type": latest["Aquifer Type"],
+        X = pd.DataFrame([{
+            "Latitude": latest["Latitude"],
+            "Longitude": latest["Longitude"],
+            "Well Depth": latest["Well Depth"],
 
-        "Lag_1": latest["Lag_1"],
-        "Lag_2": latest["Lag_2"],
-        "Lag_4": latest["Lag_4"],
-        "Rolling_4": latest["Rolling_4"]
-    }])
+            "Year": now.year,
+            "Month": now.month,
 
-    X["State"] = encoders[
-        "State"
-    ].transform(X["State"])
+            "State": latest["State"],
+            "District": latest["District"],
+            "Type of Well": latest["Type of Well"],
+            "Aquifer Type": latest["Aquifer Type"],
 
-    X["District"] = encoders[
-        "District"
-    ].transform(X["District"])
+            "Lag_1": latest["Lag_1"],
+            "Lag_2": latest["Lag_2"],
+            "Lag_4": latest["Lag_4"],
+            "Rolling_4": latest["Rolling_4"]
+        }])
 
-    X["Type of Well"] = encoders[
-        "Type of Well"
-    ].transform(X["Type of Well"])
+        # Type conversion and encoding
+        for col in ["State", "District", "Type of Well", "Aquifer Type"]:
+            X[col] = encoders[col].transform(X[col])
 
-    X["Aquifer Type"] = encoders[
-        "Aquifer Type"
-    ].transform(X["Aquifer Type"])
+        prediction = float(model.predict(X)[0])
+        current_depth = float(latest["Groundwater_Level"])
+        
+        score = calculate_health_score(
+            current_depth=current_depth,
+            predicted_depth=prediction
+        )
 
-    prediction = float(
-        model.predict(X)[0]
-    )
+        results.append({
+            "station": station,
+            "current_depth": current_depth,
+            "predicted_depth": prediction,
+            "health_score": score,
+            "risk": get_risk(score)
+        })
 
-    current_depth = float(
-        latest["Groundwater_Level"]
-    )
+    if not results:
+        return None
 
-    score = calculate_health_score(
-        current_depth,
-        prediction
-    )
-
-    risk = get_risk(score)
-
-    return {
-        "station": latest["Station Name"],
-        "current_depth": round(
-            current_depth,
-            2
-        ),
-        "predicted_depth": round(
-            prediction,
-            2
-        ),
-        "health_score": score,
-        "risk": risk
-    }
+    # If multiple results (the "All" case), average them
+    if len(results) > 1:
+        avg_current = sum(r["current_depth"] for r in results) / len(results)
+        avg_predicted = sum(r["predicted_depth"] for r in results) / len(results)
+        avg_score = sum(r["health_score"] for r in results) / len(results)
+        
+        return {
+            "station": "District Average",
+            "current_depth": round(avg_current, 2),
+            "predicted_depth": round(avg_predicted, 2),
+            "health_score": round(avg_score, 1),
+            "risk": get_risk(avg_score)
+        }
+    
+    return results[0]
