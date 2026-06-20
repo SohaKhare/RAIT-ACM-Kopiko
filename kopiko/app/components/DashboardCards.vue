@@ -89,7 +89,7 @@ const price = '₹2,400 / quintal'
   width: 100%;
   background-color: var(--card-bg, #2E8B57);
   color: var(--text-card, #F4EFE6);
-  border-radius: 20rem; /* rounded-2xl */
+  border-radius: 2rem; /* rounded-2xl */
   padding: 1.25rem 1.5rem;
   display: flex;
   flex-direction: column;
@@ -119,14 +119,14 @@ const price = '₹2,400 / quintal'
   width: 100%;
   height: 12px;
   background-color: rgba(244, 239, 230, 0.3); /* Transparent beige */
-  border-radius: 9999px;
+  border-radius: 10px;
   overflow: hidden;
 }
 
 .progress-bar-fill {
   height: 100%;
   background-color: var(--text-card, #F4EFE6);
-  border-radius: 9999px;
+  border-radius: 10px;
   transition: width 1s ease-in-out;
 }
 
