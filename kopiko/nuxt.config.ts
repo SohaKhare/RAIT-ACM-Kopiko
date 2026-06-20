@@ -1,4 +1,5 @@
-// https://nuxt.com/docs/api/configuration/nuxt-config
+const apiTarget = (process.env.NUXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4001').replace(/\/$/, '')
+
 export default defineNuxtConfig({
   modules: ['@vite-pwa/nuxt'],
   pwa: {
@@ -7,18 +8,6 @@ export default defineNuxtConfig({
       name: 'Kopiko',
       short_name: 'Kopiko',
       theme_color: '#ffffff',
-      // icons: [
-      //   {
-      //     src: 'pwa-192x192.png',
-      //     sizes: '192x192',
-      //     type: 'image/png'
-      //   },
-      //   {
-      //     src: 'pwa-512x512.png',
-      //     sizes: '512x512',
-      //     type: 'image/png'
-      //   }
-      // ]
     },
     workbox: {
       navigateFallback: '/',
@@ -30,8 +19,13 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4001',
+      apiBase: '/api',
     },
+  },
+  routeRules: {
+    '/api/**': {
+      proxy: `${apiTarget}/**`
+    }
   },
   devServer: {
     port: 4000,
