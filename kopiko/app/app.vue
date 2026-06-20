@@ -1235,7 +1235,7 @@ const handleSpeakClick = () => {
 
 .custom-input:focus {
   border-color: var(--accent-green);
-  background-color: #ffffff;
+  background-color: var(--bg-main);
   box-shadow: 0 0 0 3px rgba(43, 122, 83, 0.1);
 }
 
