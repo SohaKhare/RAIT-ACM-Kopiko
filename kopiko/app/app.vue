@@ -4,6 +4,7 @@ import { LANGUAGES, simulateGeminiTranslation, translateCardText } from './utils
 import DashboardCards from './components/DashboardCards.vue'
 
 // State
+const config = useRuntimeConfig()
 const selectedLanguage = ref('en-IN')
 const hasSelectedLanguage = ref(false)
 const isStarted = ref(false)
@@ -14,6 +15,7 @@ const micState = ref<'idle' | 'listening' | 'processing'>('idle')
 
 const stateName = ref('')
 const districtName = ref('')
+const availableMandis = ref<string[]>(['All Markets'])
 
 const questions = ['q1', 'q2']
 const userAnswers = ref<string[]>([])
@@ -67,7 +69,7 @@ const requestLocation = () => {
         }
         console.log('Location retrieved:', userLocation.value)
         try {
-          const res = await fetch(`http://localhost:4001/location`, {
+          const res = await fetch(`${config.public.apiBase}/location`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ lat: position.coords.latitude, lng: position.coords.longitude })
@@ -83,6 +85,23 @@ const requestLocation = () => {
             localStorage.setItem('userLng', position.coords.longitude.toString())
             localStorage.setItem('userState', stateName.value)
             localStorage.setItem('userDistrict', districtName.value)
+
+            // Fetch available mandis for the district
+            if (districtName.value) {
+              try {
+                const mandiRes = await fetch(`${config.public.apiBase}/location/mandis`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ district: districtName.value, state: stateName.value })
+                })
+                const mandiData = await mandiRes.json()
+                if (mandiData && Array.isArray(mandiData.mandis)) {
+                  availableMandis.value = ['All Markets', ...mandiData.mandis]
+                }
+              } catch(e) {
+                console.error('Error fetching mandis:', e)
+              }
+            }
           }
         } catch(e) {
           console.error('Backend location error:', e)
@@ -145,7 +164,7 @@ const startListening = async () => {
       formData.append('district', localStorage.getItem('userDistrict') || '')
 
       try {
-        const res = await fetch(`http://localhost:4001/llm/audio`, {
+        const res = await fetch(`${config.public.apiBase}/llm/audio`, {
           method: 'POST',
           body: formData
         })
@@ -290,8 +309,8 @@ const handleSpeakClick = () => {
           <div v-if="isStarted && activeStep === 0 && !isCompleted && districtName" style="margin-top: 2rem; z-index: 60; width: 100%; display: flex; justify-content: center;">
             <select @change="handleMandiSelect" class="custom-select well-dropdown" style="text-align: center; text-align-last: center;">
                <option disabled selected value="">{{ translateCardText('select_mandi', selectedLanguage) }}</option>
-               <option v-for="mandi in ['mandi_alpha', 'mandi_beta', 'mandi_gamma']" :key="mandi" :value="mandi">
-                 {{ translateCardText(mandi, selectedLanguage) }} {{ districtName ? ` - ${districtName}` : '' }}
+               <option v-for="mandi in availableMandis" :key="mandi" :value="mandi">
+                 {{ mandi }} {{ districtName ? ` - ${districtName}` : '' }}
                </option>
             </select>
           </div>
