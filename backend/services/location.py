@@ -77,3 +77,25 @@ def mandis_by_district(district, state):
     markets_query = supabase.table("markets").select("id, mkt_name").eq("district_id", district_id).execute()
     
     return [market["mkt_name"] for market in markets_query.data] if markets_query.data else []
+
+
+def fetch_all_states_from_db():
+    """
+    Fetches all states ordered by state_name.
+    """
+    resp = supabase.table("states").select("state_id, state_name").order("state_name").execute()
+    return [state["state_name"] for state in resp.data] if resp.data else []
+
+
+def fetch_districts_by_state_from_db(state_name: str):
+    """
+    Fetches all districts in a given state name.
+    """
+    # Clean and match state name
+    state_query = supabase.table("states").select("state_id").ilike("state_name", f"%{state_name.strip()}%").limit(1).execute()
+    if not state_query.data:
+        return []
+    state_id = state_query.data[0]["state_id"]
+    
+    resp = supabase.table("districts").select("district_name").eq("state_id", state_id).order("district_name").execute()
+    return [dist["district_name"] for dist in resp.data] if resp.data else []

@@ -20,6 +20,36 @@ const isSplitLayout = computed(() => {
 const stateName = ref('')
 const districtName = ref('')
 const availableMandis = ref<string[]>(['All Markets'])
+const availableStates = ref<string[]>([])
+const availableDistricts = ref<string[]>([])
+
+const fetchStatesList = async () => {
+  try {
+    const res = await fetch(`${config.public.apiBase}/location/states`)
+    const data = await res.json()
+    if (data && Array.isArray(data.states)) {
+      availableStates.value = data.states
+    }
+  } catch(e) {
+    console.error('Error fetching states list:', e)
+  }
+}
+
+const fetchDistrictsList = async () => {
+  if (!stateName.value) {
+    availableDistricts.value = []
+    return
+  }
+  try {
+    const res = await fetch(`${config.public.apiBase}/location/districts?state=${encodeURIComponent(stateName.value)}`)
+    const data = await res.json()
+    if (data && Array.isArray(data.districts)) {
+      availableDistricts.value = data.districts
+    }
+  } catch(e) {
+    console.error('Error fetching districts list:', e)
+  }
+}
 
 const fetchAvailableMandis = async () => {
   if (!districtName.value) {
@@ -41,9 +71,20 @@ const fetchAvailableMandis = async () => {
   }
 }
 
-watch([stateName, districtName], () => {
-  fetchAvailableMandis()
+watch(stateName, async (newVal, oldVal) => {
+  await fetchDistrictsList()
   farmerContext.value.state_name = stateName.value
+  
+  if (oldVal && newVal !== oldVal) {
+    if (!availableDistricts.value.includes(districtName.value)) {
+      districtName.value = ''
+      availableMandis.value = ['All Markets']
+    }
+  }
+})
+
+watch(districtName, () => {
+  fetchAvailableMandis()
   farmerContext.value.district_name = districtName.value
 })
 
@@ -264,7 +305,8 @@ const requestLocation = () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await fetchStatesList()
   requestLocation()
 })
 
@@ -707,26 +749,26 @@ const handleSpeakClick = () => {
             <div class="location-form-card">
               <h2 class="form-card-title">Confirm Location & Market</h2>
               
-              <!-- State Input -->
+              <!-- State Select Dropdown -->
               <div class="form-field">
                 <label class="field-label">State / राज्य / राज्य</label>
-                <input 
-                  type="text" 
-                  v-model="stateName" 
-                  class="custom-input" 
-                  placeholder="Enter State (e.g., Maharashtra)"
-                />
+                <select v-model="stateName" class="custom-select form-select">
+                  <option disabled value="">Select State / राज्य निवडा</option>
+                  <option v-for="state in availableStates" :key="state" :value="state">
+                    {{ state }}
+                  </option>
+                </select>
               </div>
 
-              <!-- District Input -->
+              <!-- District Select Dropdown -->
               <div class="form-field">
                 <label class="field-label">District / जिल्हा / जिला</label>
-                <input 
-                  type="text" 
-                  v-model="districtName" 
-                  class="custom-input" 
-                  placeholder="Enter District (e.g., Pune)"
-                />
+                <select v-model="districtName" class="custom-select form-select" :disabled="!stateName">
+                  <option disabled value="">Select District / जिल्हा निवडा</option>
+                  <option v-for="dist in availableDistricts" :key="dist" :value="dist">
+                    {{ dist }}
+                  </option>
+                </select>
               </div>
 
               <!-- Mandi Select Dropdown -->
@@ -1218,5 +1260,12 @@ const handleSpeakClick = () => {
   padding: 0.75rem 2.5rem 0.75rem 1rem !important;
   font-size: 1rem !important;
   font-weight: 600 !important;
+}
+
+.form-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background-color: rgba(243, 235, 221, 0.35);
+  border-color: rgba(43, 122, 83, 0.08);
 }
 </style>

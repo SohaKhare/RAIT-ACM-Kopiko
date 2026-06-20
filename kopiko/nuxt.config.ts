@@ -1,5 +1,3 @@
-const apiTarget = (process.env.NUXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4001').replace(/\/$/, '')
-
 export default defineNuxtConfig({
   modules: ['@vite-pwa/nuxt'],
   pwa: {
@@ -19,13 +17,8 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     public: {
-      apiBase: '/api',
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || process.env.API_BASE || 'http://localhost:4001',
     },
-  },
-  routeRules: {
-    '/api/**': {
-      proxy: `${apiTarget}/**`
-    }
   },
   devServer: {
     port: 4000,

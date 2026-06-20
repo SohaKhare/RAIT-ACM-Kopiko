@@ -15,6 +15,7 @@ class Settings(BaseSettings):
         "http://127.0.0.1:4000",
         "https://rait-acm-kopiko.vercel.app",
         "https://rait-acm-kopiko.vercel.app/",
+        "100.106.76.121:4000",
     ]
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
