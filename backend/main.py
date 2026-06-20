@@ -11,6 +11,7 @@ from config import settings
 from routes import groundwater, health, llm, location, mandi, weather, aggregator, mandi_predict
 from services import GeminiConversationService
 from services.groundwater import get_groundwater_data
+from services.groundwater_ml import predict_groundwater
 
 
 def create_app() -> FastAPI:
@@ -297,30 +298,102 @@ async def whatsapp_webhook(
         cleaned_village = village.lower().replace(".", "").strip()
         if cleaned_village in ["none", "no", "nil", "koi nahi", "not sure"]:
             village = "none"
-        place = village if village.lower() != "none" else district
+        # place = village if village.lower() != "none" else district
 
         try:
-            result = get_groundwater_data(state, place)
-            if (result["statusCode"] != 200 or not result["data"]):
-                if "mumbai" in place.lower():
-                    print("⚠️ No direct data for Mumbai City. Redirecting to Mumbai Suburban...")
-                    result = get_groundwater_data(state, "Mumbai Suburban")
-            if result["statusCode"] == 200 and result["data"]:
-                data = result["data"][0]
-                latest_reading = data.get("latestReading") or data.get("dataValue", "N/A")
-                well_depth = data.get("wellDepth", "N/A")
-                station = data.get("stationName", "N/A")
+            # result = get_groundwater_data(state, place)
+            result = predict_groundwater(state=state,district=district,village=village)
+            # if (result["statusCode"] != 200 or not result["data"]):
+            #     if "mumbai" in place.lower():
+            #         print("⚠️ No direct data for Mumbai City. Redirecting to Mumbai Suburban...")
+            #         result = get_groundwater_data(state, "Mumbai Suburban")
+            
+            if result is not None:
+
+                forecast_change = round(
+                    result["predicted_depth"] -
+                    result["current_depth"],
+                    2
+                )
+                score = result["health_score"]
+
+                if score >= 80:
+                    crops = [
+                        "Paddy (Rice)",
+                        "Maize",
+                        "Cotton",
+                        "Groundnut"
+                    ]
+
+                elif score >= 60:
+                    crops = [
+                        "Maize",
+                        "Groundnut",
+                        "Cotton",
+                        "Soybean"
+                    ]
+
+                elif score >= 40:
+                    crops = [
+                        "Groundnut",
+                        "Ragi",
+                        "Bajra",
+                        "Moong"
+                    ]
+
+                else:
+                    crops = [
+                        "Sesame",
+                        "Moong",
+                        "Tur",
+                        "Ragi",
+                        "Bajra"
+                    ]
 
                 body = (
-                    f"✅ Data for {place}, {state}:\n"
-                    f"📍 Station: {station}\n"
-                    f"📏 Well Depth: {well_depth}m\n"
-                    f"💧 Latest Reading: {latest_reading}m\n\n"
-                    "Type *start* to check another location!"
+                    f"🌾 Bhoomi Groundwater Report\n\n"
+
+                    f"📍 Location: {district}, {state}\n"
+                    f"🏷️ Station: {result['station']}\n\n"
+
+                    f"💧 Current Groundwater: "
+                    f"{result['current_depth']}m\n"
+
+                    f"🔮 Predicted Groundwater: "
+                    f"{result['predicted_depth']}m\n"
+
+                    f"📈 Expected Change: "
+                    f"{forecast_change:+}m\n\n"
+
+                    f"📊 Health Score: "
+                    f"{result['health_score']}/100\n"
+
+                    f"⚠️ Risk Level: "
+                    f"{result['risk']}\n\n"
+
+                    f"🌱 Recommended Crops:\n"
+
+                    + "\n".join(
+                        [
+                            f"• {crop}"
+                            for crop in crops
+                        ]
+                    )
+
+                    + "\n\nType *start* to check another location."
                 )
-                body = maybe_translate_with_sarvam(body, language)
+
+                body = maybe_translate_with_sarvam(
+                    body,
+                    language
+                )
+
             else:
-                body = translations["not_found"].format(place, state)
+
+                body = (
+                    f"❌ No groundwater data found for "
+                    f"{district}, {state}."
+                )
         except Exception as error:
             print(f"Error fetching groundwater data: {error}")
             body = "Oops! Something went wrong. Please try again later."

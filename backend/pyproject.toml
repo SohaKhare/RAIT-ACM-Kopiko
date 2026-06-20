@@ -24,4 +24,5 @@ dependencies = [
     "pyarrow>=24.0.0",
     "kaggle>=2.2.2",
     "joblib>=1.5.3",
+    "xgboost>=3.3.0",
 ]
