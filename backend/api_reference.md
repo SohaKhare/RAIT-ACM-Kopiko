@@ -483,6 +483,20 @@ Combines groundwater levels (ML-predicted), weather forecasts, mandi arrivals, a
           "two_day_ago_arrival": "32.40"
         }
       ],
+      "soil": {
+        "chemistry": {
+          "clay": { "value": null, "unit": "%" },
+          "nitrogen": { "value": null, "unit": "g/kg" },
+          "phh2o": { "value": null, "unit": "-" },
+          "sand": { "value": null, "unit": "%" },
+          "silt": { "value": null, "unit": "%" },
+          "soc": { "value": null, "unit": "g/kg" }
+        },
+        "moisture_and_temperature": {
+          "soil_temperature_c": 26.6,
+          "soil_moisture_m3_per_m3": 0.054
+        }
+      },
       "agriculture_advisory": {
         "groundwater_depth_m": 14.5,
         "groundwater_status": "moderate",

@@ -6,6 +6,7 @@ from services.weather import get_rainfall_data
 from services.groundwater import get_groundwater_data
 from models.groundwater import Groundwater, GroundwaterMLResponse
 from services.groundwater_ml import predict_groundwater
+from services.soil import get_soil_data
 
 # Here we are aggregating all the data we gathered into a single pipeline.
 
@@ -73,6 +74,7 @@ async def _aggregate_locational_data(location: Location):
     # Get ML prediction
     groundwater_data = predict_groundwater(state=state, district=district)
     weather_data = await get_rainfall_data(lat, lng)
+    soil_data = await get_soil_data(lat, lng)
 
     # 2. Process Groundwater Data & Get AI-Sorted Crop Recommendations
     depth = 0.0
@@ -104,5 +106,6 @@ async def _aggregate_locational_data(location: Location):
         "weather": weather_data,
         "groundwater": clean_groundwater,
         "mandi": clean_mandi,
+        "soil": soil_data,
         "agriculture_advisory": crop_recommendations
     }

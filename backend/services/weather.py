@@ -10,7 +10,7 @@ async def get_rainfall_data(lat: float, lon: float) -> dict:
     Single API call: 30 past days + 7 future days = 37 entries.
     Split at today's date into historical vs forecast.
     """
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(OPEN_METEO_FORECAST, params={
             "latitude": lat,
             "longitude": lon,
