@@ -368,21 +368,7 @@ class GeminiConversationService:
                 {"role": "system", "content": system_prompt},
                 *(conversation_history or []),
                 user_message,
-                {
-                    "role": "assistant",
-                    "content": message.content,
-                    "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {
-                                "name": tc.name,
-                                "arguments": json.dumps(tc.arguments, ensure_ascii=False)
-                            }
-                        }
-                        for tc in tool_calls
-                    ]
-                }
+                message,
             ]
             
             # Execute each tool and append the result
