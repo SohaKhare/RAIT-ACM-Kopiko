@@ -26,6 +26,7 @@ def process_text_message(
     location_ctx = f" Farmer Location: {district or 'Unknown District'}, {state or 'Unknown State'} (Lat: {lat}, Lng: {lng})." if lat and lng else ""
     prompt = (
         f"Preferred response language: {language or 'auto'}. "
+        "Note that if the farmer explicitly asks to switch languages (e.g. saying 'marathi me badlo' or 'urdu') or starts speaking in a different language, ignore this preferred response language, invoke the switch_language tool, update preferred_language in the context, and respond in their requested language. "
         f"Respond conversationally to the farmer's message.{location_ctx} "
         "Keep the response concise and practical."
     )
@@ -40,6 +41,7 @@ def process_text_message(
         "missing_fields": result.missing_fields,
         "updated_context": result.updated_context.model_dump() if result.updated_context else {},
         "tool_calls": [tc.model_dump() for tc in result.tool_calls] if result.tool_calls else [],
+        "switch_to_lang": result.switch_to_lang,
     }
 
 
@@ -68,6 +70,7 @@ def process_audio_message(
     location_ctx = f" Farmer Location: {district or 'Unknown District'}, {state or 'Unknown State'} (Lat: {lat}, Lng: {lng})." if lat and lng else ""
     prompt = (
         f"Preferred response language: {language or 'auto'}. "
+        "Note that if the farmer explicitly asks to switch languages (e.g. saying 'marathi me badlo' or 'urdu') or starts speaking in a different language, ignore this preferred response language, invoke the switch_language tool, update preferred_language in the context, and respond in their requested language. "
         f"Understand the farmer's spoken message and reply conversationally.{location_ctx} "
         "Keep the response concise and practical."
     )
@@ -85,4 +88,5 @@ def process_audio_message(
         "missing_fields": result.missing_fields,
         "updated_context": result.updated_context.model_dump() if result.updated_context else {},
         "tool_calls": [tc.model_dump() for tc in result.tool_calls] if result.tool_calls else [],
+        "switch_to_lang": result.switch_to_lang,
     }

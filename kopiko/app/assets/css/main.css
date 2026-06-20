@@ -1,17 +1,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-main: #FAF7F2;
-  --bg-secondary: #E9E3D5;
-  --text-primary: #1E3A2F;
-  --text-secondary: #556B61;
-  --text-card: #F4EFE6;
-  --accent-green: #2E8B57; /* Sea Green */
-  --card-bg: #2E8B57;
-  --mic-idle: #1E3A2F;
-  --mic-listening: #e74c3c;
-  --mic-processing: #f39c12;
-  --mic-speaking: #3498db;
+  --bg-main: #FAF6EE; /* Warm cream/yellowish background */
+  --bg-secondary: #F3EBDD; /* Warm cream secondary */
+  --text-primary: #1B352B; /* Dark forest green for farmers */
+  --text-secondary: #4A5F54; /* Olive green */
+  --text-card: #FAF6EE;
+  --accent-green: #2B7A53; /* Vibrant agriculture green */
+  --card-bg: #2B7A53;
+  --mic-idle: #2B7A53;
+  --mic-listening: #D9534F; /* Coral red */
+  --mic-processing: #E08E2E; /* Warm amber */
+  --mic-speaking: #3A87AD;
+  --shadow-soft: 0 8px 30px rgba(27, 53, 43, 0.06);
+  --shadow-medium: 0 12px 40px rgba(27, 53, 43, 0.12);
 }
 
 * {
@@ -30,7 +32,7 @@ body, html {
   overscroll-behavior: none;
 }
 
-/* Base utility classes since we aren't heavily using Tailwind */
+/* Base utility classes */
 .w-full { width: 100%; }
 .h-full { height: 100%; }
 .flex { display: flex; }
@@ -57,20 +59,127 @@ body, html {
   animation: pulse 1.5s infinite ease-in-out;
 }
 
-.mic-listening {
+/* Circular Speak Button styles */
+.speak-btn-circular {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--mic-idle);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: var(--shadow-medium);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 5;
+}
+
+.speak-btn-circular:active {
+  transform: scale(0.92);
+}
+
+.speak-btn-circular:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.speak-btn-circular .mic-icon {
+  width: 32px;
+  height: 32px;
+  fill: currentColor;
+  transition: transform 0.3s ease;
+}
+
+.speak-btn-circular:hover .mic-icon {
+  transform: scale(1.1);
+}
+
+.speak-btn-circular.mic-listening {
   background-color: var(--mic-listening) !important;
-  box-shadow: 0 0 20px rgba(231, 76, 60, 0.6);
+  box-shadow: 0 0 24px var(--mic-listening);
   color: white !important;
 }
 
-.mic-processing {
+.speak-btn-circular.mic-processing {
   background-color: var(--mic-processing) !important;
-  box-shadow: 0 0 20px rgba(243, 156, 18, 0.6);
+  box-shadow: 0 0 24px var(--mic-processing);
   color: white !important;
 }
 
-.mic-speaking {
-  background-color: var(--mic-speaking) !important;
-  box-shadow: 0 0 20px rgba(52, 152, 219, 0.6);
-  color: white !important;
+/* Circular Voice Ripples (Listening State) */
+.mic-container-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
 }
+
+.ripple-glow {
+  position: absolute;
+  top: 38px; /* half of 76px button */
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 76px;
+  height: 76px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ripple {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(217, 83, 79, 0.4) 0%, rgba(217, 83, 79, 0) 70%);
+  animation: ripple-out 2s infinite cubic-bezier(0.1, 0.8, 0.3, 1);
+  opacity: 0;
+}
+
+.ripple-1 { animation-delay: 0s; }
+.ripple-2 { animation-delay: 0.6s; }
+.ripple-3 { animation-delay: 1.2s; }
+
+@keyframes ripple-out {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+
+/* Siri-like Conic Gradient Glow (Processing State) */
+.thinking-glow {
+  position: absolute;
+  top: 38px; /* half of 76px button */
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #E08E2E, #D9534F, #3A87AD, #2B7A53, #E08E2E);
+  animation: rotate-glow 2.5s linear infinite;
+  filter: blur(12px);
+  opacity: 0.8;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes rotate-glow {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Helper text below mic */
+.mic-helper-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  z-index: 5;
+  text-align: center;
+}
+

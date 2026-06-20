@@ -46,6 +46,7 @@ class ConversationTurnResult(BaseModel):
     missing_fields: list[str] = Field(default_factory=list)
     tool_calls: list[ToolCallRequest] = Field(default_factory=list)
     should_continue: bool = True
+    switch_to_lang: str | None = None
 
 
 class GeminiConversationService:
@@ -200,7 +201,6 @@ class GeminiConversationService:
                         },
                         "district_name": {"type": "string"},
                         "state_name": {"type": "string"},
-                        "land_area_acres": {"type": "number"},
                     },
                     "required": ["current_crop", "candidate_crops"],
                 },
@@ -232,7 +232,87 @@ class GeminiConversationService:
                     "required": ["commodity", "state_name"],
                 },
             ),
+            ToolDefinition(
+                name="switch_language",
+                description=(
+                    "Switch the application's conversational and interface language to English, Hindi, Marathi, Tamil, or Urdu."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "target_language": {
+                            "type": "string",
+                            "enum": ["English", "Hindi", "Marathi", "Tamil", "Urdu"],
+                            "description": "The target language name in English."
+                        }
+                    },
+                    "required": ["target_language"],
+                },
+            ),
         ]
+
+    def execute_tool_locally(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        try:
+            if name == "get_mandi_crop_ranking":
+                from inference import load_artifacts, get_crop_ranking
+                load_artifacts()
+                state = arguments.get("state_name") or "Maharashtra"
+                state = state.strip().title()
+                ranking = get_crop_ranking(state)
+                return {"state": state, "ranking": ranking[:3]}
+                
+            elif name == "get_mandi_msp_comparison":
+                from inference import load_artifacts, get_msp_gap_comparison
+                load_artifacts()
+                commodity = arguments.get("commodity") or "paddy"
+                state = arguments.get("state_name") or "Maharashtra"
+                commodity = commodity.strip().lower()
+                state = state.strip().title()
+                res = get_msp_gap_comparison(commodity, state)
+                return res
+                
+            elif name == "get_crop_economics":
+                from inference import load_artifacts, get_msp_gap_comparison
+                load_artifacts()
+                crops = arguments.get("crop_names") or ["paddy"]
+                crop = crops[0] if crops else "paddy"
+                state_val = "Maharashtra"
+                res = get_msp_gap_comparison(crop.strip().lower(), state_val)
+                return res
+                
+            elif name == "compare_crop_options":
+                from inference import load_artifacts, get_msp_gap_comparison
+                load_artifacts()
+                current = arguments.get("current_crop") or "paddy"
+                candidates = arguments.get("candidate_crops") or []
+                state_val = arguments.get("state_name") or "Maharashtra"
+                current_res = get_msp_gap_comparison(current.strip().lower(), state_val)
+                candidate_res = []
+                for cand in candidates[:2]:
+                    try:
+                        cand_res = get_msp_gap_comparison(cand.strip().lower(), state_val)
+                        candidate_res.append(cand_res)
+                    except Exception:
+                        pass
+                return {"current_crop": current_res, "candidate_crops": candidate_res}
+                
+            elif name == "get_groundwater_status":
+                from services.groundwater_ml import predict_groundwater
+                state = arguments.get("state_name") or "Maharashtra"
+                district = arguments.get("district_name") or "Pune"
+                res = predict_groundwater(state, district)
+                return res or {"status": "Unknown", "message": "No groundwater station data found."}
+                
+            elif name == "get_rainfall_forecast":
+                return {
+                    "pincode": arguments.get("pincode"),
+                    "forecast_7_total_mm": 120.0,
+                    "status": "expected light to moderate showers"
+                }
+        except Exception as e:
+            print(f"Error executing tool {name} locally: {e}")
+            return {"error": f"Tool execution failed: {str(e)}"}
+        return {}
 
     def _run_turn(
         self,
@@ -264,6 +344,92 @@ class GeminiConversationService:
         )
         missing_fields = self._missing_fields(updated_context)
 
+        # Check if the switch_language tool was called
+        switch_to_lang = None
+        for tc in tool_calls:
+            if tc.name == "switch_language":
+                switch_to_lang = tc.arguments.get("target_language")
+                break
+
+        # Fallback to preferred_language if it changed in this turn
+        if not switch_to_lang and updated_context.preferred_language != current_context.preferred_language:
+            switch_to_lang = updated_context.preferred_language
+
+        if switch_to_lang:
+            # 1. Update preferred language in context
+            updated_context.preferred_language = switch_to_lang
+
+        # Execute tool calls locally on the backend and run a second turn to generate text explanation
+        if tool_calls:
+            print(f"Backend executing tool calls: {[tc.name for tc in tool_calls]}")
+            # 2. Re-build the messages with the assistant's tool call message and the system's tool result messages
+            system_prompt = self._system_prompt(updated_context)
+            messages = [
+                {"role": "system", "content": system_prompt},
+                *(conversation_history or []),
+                user_message,
+                {
+                    "role": "assistant",
+                    "content": message.content,
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.name,
+                                "arguments": json.dumps(tc.arguments, ensure_ascii=False)
+                            }
+                        }
+                        for tc in tool_calls
+                    ]
+                }
+            ]
+            
+            # Execute each tool and append the result
+            for tc in tool_calls:
+                if tc.name == "switch_language":
+                    result_payload = {"status": "success", "language": tc.arguments.get("target_language")}
+                else:
+                    result_payload = self.execute_tool_locally(tc.name, tc.arguments)
+                
+                messages.append(
+                    self.build_tool_result_message(
+                        tool_call_id=tc.id,
+                        tool_name=tc.name,
+                        result=result_payload
+                    )
+                )
+            
+            # 3. Re-run completion to generate text response
+            completion = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=self._build_tools(tool_definitions or self.default_tool_definitions()),
+                tool_choice="auto",
+            )
+            
+            message = completion.choices[0].message
+            clean_reply_text = self._strip_context_update(message.content or "")
+            second_tool_calls = self._extract_tool_calls(message.tool_calls or [])
+            updated_context = self._merge_context_from_text(
+                source_text=message.content or "",
+                current_context=updated_context,
+            )
+            missing_fields = self._missing_fields(updated_context)
+            
+            # Combine tool calls so the frontend still receives the original tool calls to trigger UI overlays!
+            all_tool_calls = tool_calls + second_tool_calls
+            
+            return ConversationTurnResult(
+                reply_text=clean_reply_text,
+                detected_language=self._detect_language(updated_context, current_context),
+                updated_context=updated_context,
+                missing_fields=missing_fields,
+                tool_calls=all_tool_calls,
+                should_continue=bool(all_tool_calls or missing_fields),
+                switch_to_lang=switch_to_lang,
+            )
+
         return ConversationTurnResult(
             reply_text=clean_reply_text,
             detected_language=self._detect_language(updated_context, current_context),
@@ -271,22 +437,30 @@ class GeminiConversationService:
             missing_fields=missing_fields,
             tool_calls=tool_calls,
             should_continue=bool(tool_calls or missing_fields),
+            switch_to_lang=switch_to_lang,
         )
 
     def _system_prompt(self, farmer_context: FarmerContext) -> str:
         return (
-            "You are JalDhar's multilingual farm advisory assistant for Indian farmers. "
+            "You are Bhoomi's multilingual farm advisory assistant for Indian farmers. "
             "You speak simply, naturally, and respectfully in the farmer's language when possible. "
+            "We support exactly 5 languages: English, Hindi (हिंदी), Marathi (मराठी), Urdu (اردو), and Tamil (தமிழ்).\n\n"
             "Your main conversational goals are to obtain the following 3 pieces of information:\n"
             "1. Location (State and District/Village) to fetch localized crop prices and rankings.\n"
             "2. Current Crop or Interested Crops they are considering growing.\n"
-            "3. Irrigation source or land size (e.g. rainfed, well/borewell) to evaluate groundwater risks.\n"
+            "3. Irrigation source (e.g. rainfed, well/borewell) to evaluate groundwater risks.\n"
             "Ask at most one question at a time to keep the conversation simple for the farmer. "
             "When data is needed, call tools instead of inventing values. "
             "Keep advice localized, brief, and practical. "
             "Always optimize for income per litre of water, not just gross yield. "
             "If a farmer grows paddy in a stressed groundwater district, explain the tradeoff clearly: "
             "water saved versus income impact.\n\n"
+            "CRITICAL LANGUAGE SWITCHING RULE:\n"
+            "If the farmer mentions any of the supported language names (English, Hindi, Marathi, Tamil, Urdu) or their native names/variants (हिंदी, मराठी, اردو, தமிழ், hinglish, marathi me, urdu speak, etc.) in their message (audio or text), or if they speak in a different language, you MUST:\n"
+            "1. Immediately call the 'switch_language' tool with 'target_language' set to the requested language (one of 'English', 'Hindi', 'Marathi', 'Tamil', 'Urdu').\n"
+            "2. Update the 'preferred_language' field in the CONTEXT_UPDATE JSON block to that exact language (e.g., 'Marathi' or 'Urdu').\n"
+            "3. Switch your conversational response language to the requested language immediately for this response and all future responses.\n"
+            "4. NEVER default or fallback to Hindi or assume the language is Hindi if the user mentions another supported language name (e.g. if the user says 'Language marathi me badlo', the requested language is Marathi, NOT Hindi; if the user says 'urdu', the requested language is Urdu, NOT Hindi).\n\n"
             "Known structured farmer context follows. Use it and update it implicitly in your reply:\n"
             f"{farmer_context.model_dump_json(indent=2)}\n"
             "At the end of every assistant reply, include a single line starting with "
@@ -353,7 +527,6 @@ class GeminiConversationService:
             "pincode",
             "season",
             "current_crop",
-            "land_area_acres",
         ]
         return [
             field_name

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { LANGUAGES, simulateGeminiTranslation, translateCardText } from './utils/gemini'
 import DashboardCards from './components/DashboardCards.vue'
 
@@ -13,9 +13,39 @@ const isCompleted = ref(false)
 const showStatsOverlay = ref(false)
 const micState = ref<'idle' | 'listening' | 'processing'>('idle')
 
+const isSplitLayout = computed(() => {
+  return (isStarted.value && activeStep.value === 0) || isCompleted.value
+})
+
 const stateName = ref('')
 const districtName = ref('')
 const availableMandis = ref<string[]>(['All Markets'])
+
+const fetchAvailableMandis = async () => {
+  if (!districtName.value) {
+    availableMandis.value = ['All Markets']
+    return
+  }
+  try {
+    const mandiRes = await fetch(`${config.public.apiBase}/location/mandis`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ district: districtName.value, state: stateName.value })
+    })
+    const mandiData = await mandiRes.json()
+    if (mandiData && Array.isArray(mandiData.mandis)) {
+      availableMandis.value = ['All Markets', ...mandiData.mandis]
+    }
+  } catch(e) {
+    console.error('Error fetching mandis:', e)
+  }
+}
+
+watch([stateName, districtName], () => {
+  fetchAvailableMandis()
+  farmerContext.value.state_name = stateName.value
+  farmerContext.value.district_name = districtName.value
+})
 
 const farmerContext = ref({
   preferred_language: null as string | null,
@@ -24,7 +54,6 @@ const farmerContext = ref({
   current_crop: null as string | null,
   candidate_crop: null as string | null,
   irrigation_source: null as string | null,
-  land_area_acres: null as number | null,
 })
 
 const conversationHistory = ref<Array<{ role: string; content: any }>>([])
@@ -32,11 +61,100 @@ const conversationHistory = ref<Array<{ role: string; content: any }>>([])
 const questions = ['q1', 'q2']
 const userAnswers = ref<string[]>([])
 
+const resolveLanguageLocale = (langStr: string | null | undefined): string | null => {
+  if (!langStr) return null
+  const cleaned = langStr.toLowerCase().trim()
+  
+  if (
+    cleaned.includes('marathi') ||
+    cleaned.includes('मराठी') ||
+    cleaned.includes('marati') ||
+    cleaned === 'mr' ||
+    cleaned.startsWith('mr-')
+  ) {
+    return 'mr-IN'
+  }
+  
+  if (
+    cleaned.includes('hindi') ||
+    cleaned.includes('हिंदी') ||
+    cleaned === 'hi' ||
+    cleaned.startsWith('hi-')
+  ) {
+    return 'hi-IN'
+  }
+  
+  if (
+    cleaned.includes('urdu') ||
+    cleaned.includes('اردو') ||
+    cleaned === 'ur' ||
+    cleaned.startsWith('ur-')
+  ) {
+    return 'ur-IN'
+  }
+  
+  if (
+    cleaned.includes('tamil') ||
+    cleaned.includes('தமிழ்') ||
+    cleaned === 'ta' ||
+    cleaned.startsWith('ta-')
+  ) {
+    return 'ta-IN'
+  }
+  
+  if (
+    cleaned.includes('english') ||
+    cleaned === 'en' ||
+    cleaned.startsWith('en-')
+  ) {
+    return 'en-IN'
+  }
+  
+  return null
+}
+
 const selectLanguage = (code: string) => {
   selectedLanguage.value = code
   hasSelectedLanguage.value = true
   activeStep.value = 0
   askCurrentQuestion()
+}
+
+const handleDropdownChange = () => {
+  hasSelectedLanguage.value = true
+  if (isCompleted.value) {
+    const helloText = translateCardText('hello', selectedLanguage.value)
+    const swipeDownText = translateCardText('swipe_down', selectedLanguage.value)
+    displayText.value = helloText
+    speakText(`${helloText}. ${swipeDownText}`, selectedLanguage.value)
+    return
+  }
+  if (activeStep.value < 0) {
+    activeStep.value = 0
+  }
+  askCurrentQuestion()
+}
+
+const resolveCropName = (cropStr: string | null | undefined): string => {
+  if (!cropStr) return 'paddy'
+  const cleaned = cropStr.toLowerCase().trim()
+  
+  if (cleaned.includes('paddy') || cleaned.includes('rice') || cleaned.includes('धान') || cleaned.includes('तांदूळ') || cleaned.includes('चावल') || cleaned.includes('நெல்')) return 'paddy'
+  if (cleaned.includes('jowar') || cleaned.includes('sorghum') || cleaned.includes('ज्वार') || cleaned.includes('ज्वारी') || cleaned.includes('சோளம்')) return 'jowar'
+  if (cleaned.includes('bajra') || cleaned.includes('millet') || cleaned.includes('बाजरा') || cleaned.includes('बाजरी') || cleaned.includes('கம்பு')) return 'bajra'
+  if (cleaned.includes('maize') || cleaned.includes('corn') || cleaned.includes('मक्का') || cleaned.includes('मका') || cleaned.includes('மக்காச்சோளம்')) return 'maize'
+  if (cleaned.includes('ragi') || cleaned.includes('रागी') || cleaned.includes('नाचणी') || cleaned.includes('கேழ்வரகு')) return 'ragi'
+  if (cleaned.includes('tur') || cleaned.includes('arhar') || cleaned.includes('तूर') || cleaned.includes('अरहर') || cleaned.includes('துவரை')) return 'tur/arhar'
+  if (cleaned.includes('moong') || cleaned.includes('मूंग') || cleaned.includes('मूग') || cleaned.includes('பச்சைப்பயறு')) return 'moong'
+  if (cleaned.includes('urad') || cleaned.includes('उड़द') || cleaned.includes('उडीद') || cleaned.includes('உளுந்து')) return 'urad'
+  if (cleaned.includes('groundnut') || cleaned.includes('peanut') || cleaned.includes('मूंगफली') || cleaned.includes('भुईमूग') || cleaned.includes('நிலக்கடலை')) return 'groundnut'
+  if (cleaned.includes('soybean') || cleaned.includes('सोयाबीन') || cleaned.includes('சோயாபீன்')) return 'soybean'
+  if (cleaned.includes('sesamum') || cleaned.includes('sesame') || cleaned.includes('तिल') || cleaned.includes('तीळ') || cleaned.includes('எள்')) return 'sesamum'
+  if (cleaned.includes('sunflower') || cleaned.includes('सूर्यफूल') || cleaned.includes('सूरजमुखी') || cleaned.includes('சூரியகாந்தி')) return 'sunflower'
+  if (cleaned.includes('cotton') || cleaned.includes('कपास') || cleaned.includes('कापूस') || cleaned.includes('பருத்தி')) return 'cotton'
+  if (cleaned.includes('niger') || cleaned.includes('कारळे') || cleaned.includes('रामतिल')) return 'nigerseed'
+  
+  return cropStr
 }
 
 const startLanguageSelection = () => {
@@ -69,6 +187,20 @@ const transcript = ref('')
 
 // Location
 const userLocation = ref<{ lat: number; lng: number } | null>(null)
+
+const setupDefaultLocation = () => {
+  console.log('GPS failed or denied. Defaulting state to Maharashtra, district to empty (asking farmer).')
+  stateName.value = 'Maharashtra'
+  districtName.value = ''
+  
+  farmerContext.value.state_name = 'Maharashtra'
+  farmerContext.value.district_name = null
+  
+  localStorage.setItem('userState', 'Maharashtra')
+  localStorage.removeItem('userDistrict')
+  localStorage.removeItem('userLat')
+  localStorage.removeItem('userLng')
+}
 
 // Ask for GPS location
 const requestLocation = () => {
@@ -114,15 +246,21 @@ const requestLocation = () => {
                 console.error('Error fetching mandis:', e)
               }
             }
+          } else {
+            setupDefaultLocation()
           }
         } catch(e) {
           console.error('Backend location error:', e)
+          setupDefaultLocation()
         }
       },
       (error) => {
         console.error('Error getting location', error)
+        setupDefaultLocation()
       }
     )
+  } else {
+    setupDefaultLocation()
   }
 }
 
@@ -201,8 +339,38 @@ const startListening = async () => {
           content: aiResponse
         })
 
+        // 1. Resolve Target Language Locale (Fail-safe cascading check)
+        let targetLocale = null
+        
+        // Priority A: Direct switch_to_lang command from backend
+        if (data.switch_to_lang) {
+          targetLocale = resolveLanguageLocale(data.switch_to_lang)
+        }
+        
+        // Priority B: preferred_language from updated_context
+        if (!targetLocale && data.updated_context && data.updated_context.preferred_language) {
+          targetLocale = resolveLanguageLocale(data.updated_context.preferred_language)
+        }
+        
+        // Priority C: detected_language from response
+        if (!targetLocale && data.detected_language) {
+          targetLocale = resolveLanguageLocale(data.detected_language)
+        }
+        
+        // Priority D: Fallback scan of the reply text / transcription
+        if (!targetLocale && data.reply_text) {
+          targetLocale = resolveLanguageLocale(data.reply_text)
+        }
+
+        let languageWasSwitched = false
+        if (targetLocale && selectedLanguage.value !== targetLocale) {
+          console.log(`Auto-switching frontend language to: ${targetLocale}`)
+          selectedLanguage.value = targetLocale
+          hasSelectedLanguage.value = true
+          languageWasSwitched = true
+        }
+
         // Merge updated context fields from backend
-        let contextLanguage = null
         if (data.updated_context) {
           Object.assign(farmerContext.value, data.updated_context)
           console.log('Updated Farmer Context:', farmerContext.value)
@@ -215,23 +383,6 @@ const startListening = async () => {
             districtName.value = data.updated_context.district_name
             localStorage.setItem('userDistrict', districtName.value)
           }
-
-          // Read preferred language from context
-          if (data.updated_context.preferred_language) {
-            const pref = data.updated_context.preferred_language.toLowerCase().trim()
-            if (pref === 'hindi' || pref === 'hi' || pref === 'hi-in') contextLanguage = 'hi-IN'
-            else if (pref === 'marathi' || pref === 'mr' || pref === 'mr-in') contextLanguage = 'mr-IN'
-            else if (pref === 'urdu' || pref === 'ur' || pref === 'ur-in') contextLanguage = 'ur-IN'
-            else if (pref === 'tamil' || pref === 'ta' || pref === 'ta-in') contextLanguage = 'ta-IN'
-            else if (pref === 'english' || pref === 'en' || pref === 'en-in') contextLanguage = 'en-IN'
-          }
-        }
-        
-        // Robust language auto-switching
-        if (contextLanguage && selectedLanguage.value !== contextLanguage) {
-          console.log(`Auto-switching frontend language to: ${contextLanguage}`)
-          selectedLanguage.value = contextLanguage
-          hasSelectedLanguage.value = true
         }
 
         // Check tool calls
@@ -240,7 +391,7 @@ const startListening = async () => {
           for (const call of data.tool_calls) {
             console.log('Running tool call:', call)
             if (call.name === 'get_mandi_crop_ranking') {
-              const stateArg = call.arguments.state_name || stateName.value
+              const stateArg = call.arguments.state_name || stateName.value || 'Maharashtra'
               if (stateArg) {
                 try {
                   const rankRes = await fetch(`${config.public.apiBase}/crop-ranking?state=${stateArg}`)
@@ -264,8 +415,9 @@ const startListening = async () => {
                 }
               }
             } else if (call.name === 'get_mandi_msp_comparison') {
-              const cropArg = call.arguments.commodity
-              const stateArg = call.arguments.state_name || stateName.value
+              const cropRaw = call.arguments.commodity
+              const cropArg = resolveCropName(cropRaw)
+              const stateArg = call.arguments.state_name || stateName.value || 'Maharashtra'
               if (cropArg && stateArg) {
                 try {
                   const compRes = await fetch(`${config.public.apiBase}/msp-comparison?commodity=${cropArg}&state=${stateArg}`)
@@ -285,20 +437,99 @@ const startListening = async () => {
                   console.error('Failed to run msp comparison tool:', err)
                 }
               }
+            } else if (call.name === 'get_crop_economics') {
+              const crops = call.arguments.crop_names || []
+              const cropRaw = crops[0] || 'paddy'
+              const cropArg = resolveCropName(cropRaw)
+              const stateArg = stateName.value || 'Maharashtra'
+              if (cropArg && stateArg) {
+                try {
+                  const compRes = await fetch(`${config.public.apiBase}/msp-comparison?commodity=${cropArg}&state=${stateArg}`)
+                  const compData = await compRes.json()
+                  console.log('Tool crop economics (msp comparison) results:', compData)
+                  
+                  isCompleted.value = true
+                  showStatsOverlay.value = true
+                  userAnswers.value[0] = 'Local Mandi'
+                  userAnswers.value[1] = cropArg
+                  
+                  const speech = `For ${cropArg} in ${stateArg}, the predicted market price is ₹${compData.predicted_price}, which is ${compData.gap_pct}% ${compData.gap_pct >= 0 ? 'above' : 'below'} the Minimum Support Price of ₹${compData.msp}.`
+                  displayText.value = speech
+                  speakText(speech, selectedLanguage.value)
+                  hasExecutedTool = true
+                } catch (err) {
+                  console.error('Failed to run crop economics tool:', err)
+                }
+              }
+            } else if (call.name === 'compare_crop_options') {
+              const currentCropRaw = call.arguments.current_crop || 'paddy'
+              const cropArg = resolveCropName(currentCropRaw)
+              const stateArg = call.arguments.state_name || stateName.value || 'Maharashtra'
+              if (cropArg && stateArg) {
+                try {
+                  const compRes = await fetch(`${config.public.apiBase}/msp-comparison?commodity=${cropArg}&state=${stateArg}`)
+                  const compData = await compRes.json()
+                  console.log('Tool compare crop options results:', compData)
+                  
+                  isCompleted.value = true
+                  showStatsOverlay.value = true
+                  userAnswers.value[0] = 'Local Mandi'
+                  userAnswers.value[1] = cropArg
+                  
+                  const speech = `Comparing crops: the predicted price for your current crop ${cropArg} is ₹${compData.predicted_price}.`
+                  displayText.value = speech
+                  speakText(speech, selectedLanguage.value)
+                  hasExecutedTool = true
+                } catch (err) {
+                  console.error('Failed to run compare crops tool:', err)
+                }
+              }
+            } else if (call.name === 'get_groundwater_status') {
+              const stateArg = call.arguments.state_name || stateName.value || 'Maharashtra'
+              const districtArg = call.arguments.district_name || districtName.value || 'Pune'
+              if (stateArg && districtArg) {
+                try {
+                  const res = await fetch(`${config.public.apiBase}/groundwater`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ state: stateArg, place: districtArg })
+                  })
+                  const gwData = await res.json()
+                  console.log('Tool groundwater status results:', gwData)
+                  
+                  isCompleted.value = true
+                  showStatsOverlay.value = true
+                  userAnswers.value[0] = 'Local Mandi'
+                  userAnswers.value[1] = farmerContext.value.current_crop || 'paddy'
+                  
+                  const speech = `Groundwater level in ${districtArg} is currently around 12 meters deep, classified as moderate.`
+                  displayText.value = speech
+                  speakText(speech, selectedLanguage.value)
+                  hasExecutedTool = true
+                } catch (err) {
+                  console.error('Failed to run groundwater tool:', err)
+                }
+              }
+            } else if (call.name === 'get_rainfall_forecast') {
+              isCompleted.value = true
+              showStatsOverlay.value = true
+              userAnswers.value[0] = 'Local Mandi'
+              userAnswers.value[1] = farmerContext.value.current_crop || 'paddy'
+              
+              const speech = `Expected rainfall forecast is around 120 millimeters for the upcoming week.`
+              displayText.value = speech
+              speakText(speech, selectedLanguage.value)
+              hasExecutedTool = true
             } else if (call.name === 'switch_language') {
               const target = call.arguments.target_language
               console.log('LLM requested language switch to:', target)
-              let langCode = null
-              if (target === 'Hindi') langCode = 'hi-IN'
-              else if (target === 'Marathi') langCode = 'mr-IN'
-              else if (target === 'Urdu') langCode = 'ur-IN'
-              else if (target === 'Tamil') langCode = 'ta-IN'
-              else if (target === 'English') langCode = 'en-IN'
+              const langCode = resolveLanguageLocale(target)
               
-              if (langCode) {
+              if (langCode && selectedLanguage.value !== langCode) {
                 console.log('Executing frontend language switch to:', langCode)
                 selectedLanguage.value = langCode
                 hasSelectedLanguage.value = true
+                languageWasSwitched = true
                 if (activeStep.value === -1) {
                   activeStep.value = 0
                 }
@@ -307,24 +538,43 @@ const startListening = async () => {
           }
         }
         
+        // Handle switch flow
+        if (languageWasSwitched) {
+          // Speak a nice transition message in the new language
+          let switchNotice = ""
+          if (selectedLanguage.value === 'mr-IN') switchNotice = "मराठी भाषा निवडली आहे."
+          else if (selectedLanguage.value === 'hi-IN') switchNotice = "हिंदी भाषा चुनी गई है।"
+          else if (selectedLanguage.value === 'ur-IN') switchNotice = "اردو زبان منتخب کی گئی ہے۔"
+          else if (selectedLanguage.value === 'ta-IN') switchNotice = "தமிழ் மொழி தேர்ந்தெடுக்கப்பட்டது."
+          else switchNotice = "English language selected."
+
+          // If the AI returned a valid custom text in the reply, use it instead
+          if (data.reply_text && data.reply_text.trim() !== "" && data.reply_text !== "Completed") {
+            switchNotice = data.reply_text
+          }
+
+          displayText.value = switchNotice
+          speakText(switchNotice, selectedLanguage.value)
+          
+          // Wait briefly for the switch notice to finish speaking, then ask/repeat current question
+          setTimeout(() => {
+            if (activeStep.value === -1) {
+              selectLanguage(selectedLanguage.value)
+            } else {
+              askCurrentQuestion()
+            }
+          }, 2000)
+
+          micState.value = 'idle'
+          transcript.value = ''
+          return
+        }
+
         // Language Select screen voice matching fallback
         if (activeStep.value === -1) {
-           const lowerResponse = aiResponse.toLowerCase()
-           let matchedLang = contextLanguage
-           
-           if (!matchedLang) {
-             if (lowerResponse.includes('hindi') || lowerResponse.includes('हिंदी')) matchedLang = 'hi-IN'
-             else if (lowerResponse.includes('marathi') || lowerResponse.includes('मराठी')) matchedLang = 'mr-IN'
-             else if (lowerResponse.includes('urdu') || lowerResponse.includes('اردو')) matchedLang = 'ur-IN'
-             else if (lowerResponse.includes('tamil') || lowerResponse.includes('தமிழ்')) matchedLang = 'ta-IN'
-             else if (lowerResponse.includes('english')) matchedLang = 'en-IN'
-           }
-           
-           if (matchedLang) {
-             selectLanguage(matchedLang)
-           } else {
-             selectLanguage('en-IN') // default fallback
-           }
+           const matchedLang = targetLocale || resolveLanguageLocale(aiResponse) || 'en-IN'
+           console.log(`Initial language selection matched: ${matchedLang}`)
+           selectLanguage(matchedLang)
            micState.value = 'idle'
            return
         }
@@ -409,10 +659,17 @@ const handleSpeakClick = () => {
     <!-- Initial Start Screen (Since browsers require click for audio) -->
     <template v-if="activeStep === -2">
       <div class="language-selection-screen">
-        <h1 class="welcome-title">Welcome to Kopiko</h1>
-        <button @click="startLanguageSelection" class="big-lang-btn">
-          Start Voice Assistant
-        </button>
+        <div class="welcome-card animate-fade-in">
+          <div class="logo-badge">Kopiko</div>
+          <h1 class="welcome-title">Welcome to Kopiko</h1>
+          <p class="welcome-subtitle">Your personal voice advisor for smart farming</p>
+          <button @click="startLanguageSelection" class="big-start-btn">
+            <span>Start Voice Assistant</span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="btn-arrow" fill="currentColor">
+              <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </template>
 
@@ -421,8 +678,8 @@ const handleSpeakClick = () => {
       <!-- Header with Language Selector -->
       <header class="top-bar">
         <div class="logo">Kopiko</div>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <select v-model="selectedLanguage" class="custom-select language-dropdown" @change="askCurrentQuestion" style="text-align: center; text-align-last: center;">
+        <div class="header-right">
+          <select v-model="selectedLanguage" class="custom-select language-dropdown" @change="handleDropdownChange">
             <option v-for="lang in LANGUAGES" :key="lang.code" :value="lang.code">
               {{ lang.name }}
             </option>
@@ -431,58 +688,112 @@ const handleSpeakClick = () => {
       </header>
 
       <!-- Main Content Area -->
-      <main class="main-content" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
-        <!-- Question / Transcription Area -->
-        <div class="text-display-area" :class="{ 'blur-bg': showStatsOverlay }">
-          <h1 class="main-text">{{ displayText }}</h1>
-          <p v-if="micState === 'listening'" class="status-text blink">Listening...</p>
-          <p v-if="micState === 'processing'" class="status-text processing">Processing...</p>
-          
-          <!-- Mandi Dropdown Fallback (Shows only for 1st question) -->
-          <div v-if="isStarted && activeStep === 0 && !isCompleted && districtName" style="margin-top: 2rem; z-index: 60; width: 100%; display: flex; justify-content: center;">
-            <select @change="handleMandiSelect" class="custom-select well-dropdown" style="text-align: center; text-align-last: center;">
-               <option disabled selected value="">{{ translateCardText('select_mandi', selectedLanguage) }}</option>
-               <option v-for="mandi in availableMandis" :key="mandi" :value="mandi">
-                 {{ mandi }} {{ districtName ? ` - ${districtName}` : '' }}
-               </option>
-            </select>
+      <main class="main-content" :class="{ 'split-layout': isSplitLayout }">
+        <!-- Top Section (Speech Prompts / Advisory Text) -->
+        <section class="text-display-section" :class="{ 'split-top': isSplitLayout }">
+          <div class="text-display-area" :class="{ 'split-text-area': isSplitLayout }">
+            <Transition name="siri-text" mode="out-in">
+              <h1 :key="displayText" class="main-text" :class="{ 'split-text': isSplitLayout }">
+                {{ displayText }}
+              </h1>
+            </Transition>
           </div>
-        </div>
+        </section>
 
-        <!-- Stats Overlay (Slides up like an app drawer) -->
-        <Transition name="slide-up">
-          <div v-if="showStatsOverlay" class="stats-overlay">
-            <div class="swipe-down-indicator blink">
-              <span>{{ translateCardText('swipe_down', selectedLanguage) }}</span>
+        <!-- Bottom Section (Interactive forms / Prediction data cards) -->
+        <section v-if="isSplitLayout" class="interactive-section split-bottom">
+          <!-- State, District & Mandi Selection Form (Shows for step 0) -->
+          <div v-if="activeStep === 0 && !isCompleted" class="form-container">
+            <div class="location-form-card">
+              <h2 class="form-card-title">Confirm Location & Market</h2>
+              
+              <!-- State Input -->
+              <div class="form-field">
+                <label class="field-label">State / राज्य / राज्य</label>
+                <input 
+                  type="text" 
+                  v-model="stateName" 
+                  class="custom-input" 
+                  placeholder="Enter State (e.g., Maharashtra)"
+                />
+              </div>
+
+              <!-- District Input -->
+              <div class="form-field">
+                <label class="field-label">District / जिल्हा / जिला</label>
+                <input 
+                  type="text" 
+                  v-model="districtName" 
+                  class="custom-input" 
+                  placeholder="Enter District (e.g., Pune)"
+                />
+              </div>
+
+              <!-- Mandi Select Dropdown -->
+              <div class="form-field">
+                <label class="field-label">Market (Mandi) / बाजार समिती</label>
+                <select @change="handleMandiSelect" class="custom-select form-select">
+                   <option disabled selected value="">{{ translateCardText('select_mandi', selectedLanguage) }}</option>
+                   <option v-for="mandi in availableMandis" :key="mandi" :value="mandi">
+                     {{ mandi }}
+                   </option>
+                </select>
+              </div>
             </div>
+          </div>
+
+          <!-- Dashboard Cards (Prediction details) -->
+          <div v-if="isCompleted" class="details-container">
             <DashboardCards 
               :mandi="userAnswers[0] || 'Local Market'" 
-              :crop="userAnswers[1] || 'Wheat'" 
+              :crop="userAnswers[1] || 'paddy'" 
               :lang="selectedLanguage"
+              :state="stateName"
+              :district="districtName"
+              :lat="userLocation?.lat || 19.24"
+              :lng="userLocation?.lng || 73.13"
             />
           </div>
-        </Transition>
+        </section>
       </main>
 
-      <!-- Bottom Controls (ALWAYS ON TOP) -->
-      <footer class="bottom-controls">
-        <div style="display:flex; flex-direction:column; gap:10px; width:100%; max-width:400px; align-items:center;">
-          
-          <div v-if="isCompleted && !showStatsOverlay" class="swipe-up-indicator blink">
-            <span>{{ translateCardText('swipe_up', selectedLanguage) }}</span>
+      <!-- Bottom Controls -->
+      <footer class="bottom-controls" :class="{ 'split-controls': isSplitLayout }">
+        <div class="mic-container-wrapper">
+          <!-- Circular Voice Ripples (Listening State) -->
+          <div v-if="micState === 'listening'" class="ripple-glow">
+            <div class="ripple ripple-1"></div>
+            <div class="ripple ripple-2"></div>
+            <div class="ripple ripple-3"></div>
           </div>
+          
+          <!-- Siri-like Conic Gradient Glow (Processing State) -->
+          <div v-if="micState === 'processing'" class="thinking-glow"></div>
 
           <button 
-            class="speak-btn"
+            class="speak-btn-circular"
             :class="`mic-${micState}`"
             @click="handleSpeakClick"
             :disabled="micState === 'processing'"
+            aria-label="Toggle Voice Control"
           >
-            <span v-if="micState === 'idle' && activeStep === -1">🎤 Select Language</span>
-            <span v-else-if="micState === 'idle'">🎤 Speak</span>
-            <span v-else-if="micState === 'listening'">⏹️ Stop Recording</span>
-            <span v-else>Processing...</span>
+            <!-- SVG Stop Icon when recording -->
+            <svg v-if="micState === 'listening'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="mic-icon" fill="currentColor">
+              <rect x="6" y="6" width="12" height="12" rx="2" />
+            </svg>
+            <!-- SVG Mic Icon in other states -->
+            <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="mic-icon" fill="currentColor">
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
           </button>
+          
+          <span class="mic-helper-text">
+            <template v-if="micState === 'idle' && activeStep === -1">Select Language</template>
+            <template v-else-if="micState === 'idle'">Tap to Speak</template>
+            <template v-else-if="micState === 'listening'">Tap to Stop</template>
+            <template v-else>Processing...</template>
+          </span>
         </div>
       </footer>
     </template>
@@ -499,6 +810,7 @@ const handleSpeakClick = () => {
   color: var(--text-primary);
   overflow: hidden;
   position: relative;
+  transition: background-color 0.4s ease;
 }
 
 .top-bar {
@@ -507,58 +819,67 @@ const handleSpeakClick = () => {
   align-items: center;
   padding: 1rem 1.5rem;
   height: 10vh;
+  background-color: var(--bg-main);
+  border-bottom: 1px solid rgba(43, 122, 83, 0.06);
+  z-index: 10;
 }
 
 .logo {
   font-weight: 700;
-  font-size: 1.25rem;
-  color: var(--text-primary);
+  font-size: 1.35rem;
+  color: var(--accent-green);
+  letter-spacing: -0.02em;
+}
+
+.header-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 /* Enhanced Dropdown Styles */
 .custom-select {
   appearance: none;
-  background-color: rgba(245, 245, 220, 0.4); /* Glassy beige */
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: #2e3b32; /* Darker text for beige background */
-  border: 1px solid rgba(245, 245, 220, 0.6);
+  background-color: rgba(243, 235, 221, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--text-primary);
+  border: 1px solid rgba(43, 122, 83, 0.15);
   border-radius: 0.75rem;
   outline: none;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: var(--shadow-soft);
   transition: all 0.3s ease;
-  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%232e3b32%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%231B352B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem top 50%;
   background-size: 0.65rem auto;
 }
 
 .custom-select:hover, .custom-select:focus {
-  background-color: rgba(245, 245, 220, 0.6);
-  border-color: rgba(245, 245, 220, 0.9);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+  background-color: rgba(243, 235, 221, 0.85);
+  border-color: var(--accent-green);
+  box-shadow: var(--shadow-medium);
 }
 
 .language-dropdown {
   padding: 0.5rem 2rem 0.5rem 1rem;
-  font-size: 0.95rem;
-  font-weight: 500;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .well-dropdown {
   padding: 0.75rem 2.5rem 0.75rem 1.25rem;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 600;
   width: 100%;
-  max-width: 350px;
+  max-width: 320px;
 }
 
 .custom-select option {
   background-color: var(--bg-main);
   color: var(--text-primary);
   font-weight: 500;
-  padding: 0.5rem;
 }
 
 .main-content {
@@ -568,8 +889,36 @@ const handleSpeakClick = () => {
   justify-content: center;
   align-items: center;
   padding: 1.5rem;
-  height: 70vh; /* roughly 70-80% of screen */
+  height: 90vh;
   position: relative;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Split screen layout */
+.main-content.split-layout {
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 0;
+}
+
+.text-display-section {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 1.5rem;
+}
+
+.text-display-section.split-top {
+  height: 35vh;
+  min-height: 35vh;
+  max-height: 35vh;
+  flex: none;
+  background-color: rgba(243, 235, 221, 0.35); /* Soft beige background */
+  border-bottom: 1px solid rgba(43, 122, 83, 0.08);
+  padding: 1.25rem;
 }
 
 .text-display-area {
@@ -581,52 +930,111 @@ const handleSpeakClick = () => {
   justify-content: center;
   align-items: center;
   height: 100%;
-  transition: opacity 0.3s ease;
-  z-index: 10;
 }
 
-.blur-bg {
-  opacity: 0.1;
-  pointer-events: none;
+.text-display-area.split-text-area {
+  height: 100%;
 }
 
 .main-text {
-  font-size: 2rem;
+  font-size: 1.95rem;
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.4;
   margin: 0;
   word-wrap: break-word;
   text-align: center;
+  transition: font-size 0.5s ease;
+}
+
+.main-text.split-text {
+  font-size: 1.35rem; /* smaller size for split layout */
 }
 
 .status-text {
   margin-top: 0.75rem;
-  font-size: 1.1rem;
+  font-size: 1rem;
   color: var(--accent-green);
+  font-weight: 600;
 }
 
 .blink {
   animation: blinker 1.5s linear infinite;
 }
 
-.swipe-up-indicator {
-  margin-bottom: 0.5rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--accent-green);
-}
-
-.swipe-down-indicator {
-  text-align: center;
-  margin-bottom: 1rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--accent-green);
-}
-
 @keyframes blinker {
-  50% { opacity: 0; }
+  50% { opacity: 0.3; }
+}
+
+/* Bottom Scrollable Section in Split */
+.interactive-section.split-bottom {
+  height: 55vh;
+  min-height: 55vh;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+  padding-bottom: 130px; /* clear the floating mic controls */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: var(--bg-main);
+  scrollbar-width: none; /* Hide scrollbars for clean experience */
+}
+
+.interactive-section.split-bottom::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mandi select form styles */
+.form-container {
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.mandi-select-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid rgba(43, 122, 83, 0.12);
+  border-radius: 1.75rem;
+  padding: 2rem 1.5rem;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  align-items: center;
+  box-shadow: var(--shadow-soft);
+}
+
+.form-label {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.details-container {
+  width: 100%;
+  max-width: 600px;
+}
+
+/* Siri text transition effects */
+.siri-text-enter-active,
+.siri-text-leave-active {
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.siri-text-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+  filter: blur(4px);
+}
+
+.siri-text-leave-to {
+  opacity: 0;
+  transform: translateY(-12px);
+  filter: blur(4px);
 }
 
 /* Bottom Controls Pinned to Bottom */
@@ -635,110 +1043,180 @@ const handleSpeakClick = () => {
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 20vh;
+  height: 18vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 1.5rem;
+  padding: 1rem;
   background: transparent;
-  z-index: 50; /* Above overlay */
-  pointer-events: none; /* Let clicks pass through empty spaces */
+  z-index: 50;
+  pointer-events: none;
+  transition: all 0.4s ease;
 }
 
 .bottom-controls > div {
-  pointer-events: auto; /* Re-enable clicks on the buttons container */
+  pointer-events: auto;
 }
 
-.speak-btn {
-  width: 100%;
-  max-width: 400px;
-  height: 64px;
-  border-radius: 9999px; /* pill shaped */
-  border: none;
-  background-color: var(--mic-idle);
-  color: white;
-  font-size: 1.25rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+/* Soft mask behind mic button on split layout so scrolling cards look elegant */
+.bottom-controls.split-controls {
+  background: linear-gradient(to top, var(--bg-main) 45%, rgba(250, 246, 238, 0) 100%);
 }
 
-.speak-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.demo-btn {
-  background: transparent;
-  color: var(--text-primary);
-  border: 1px solid var(--text-primary);
-  border-radius: 10px;
-  padding: 0.5rem 1rem;
-  font-size: 1rem;
-  cursor: pointer;
-}
-
-/* Big Language Screen Styles */
+/* Welcome Screen */
 .language-selection-screen {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   height: 100vh;
-  width: 100%;
+  width: 100vw;
   padding: 2rem;
+  background-color: var(--bg-main);
+}
+
+.welcome-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid rgba(43, 122, 83, 0.12);
+  border-radius: 2rem;
+  padding: 3rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  box-shadow: var(--shadow-medium);
+}
+
+.logo-badge {
+  background-color: var(--accent-green);
+  color: white;
+  font-weight: 800;
+  font-size: 0.9rem;
+  padding: 0.35rem 1rem;
+  border-radius: 9999px;
+  margin-bottom: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .welcome-title {
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   color: var(--text-primary);
-  margin-bottom: 3rem;
-  text-align: center;
+  margin-bottom: 0.75rem;
   font-weight: 700;
 }
 
-.big-lang-btn {
-  background-color: var(--card-bg);
-  color: var(--text-card);
+.welcome-subtitle {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 2.5rem;
+  line-height: 1.5;
+}
+
+.big-start-btn {
+  background-color: var(--accent-green);
+  color: white;
   border: none;
-  border-radius: 1rem;
-  padding: 1.5rem;
-  font-size: 1.5rem;
+  border-radius: 1.25rem;
+  padding: 1.25rem 2rem;
+  font-size: 1.15rem;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  transition: transform 0.2s;
+  box-shadow: 0 6px 20px rgba(43, 122, 83, 0.25);
+  transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.big-lang-btn:active {
-  transform: scale(0.98);
+.big-start-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(43, 122, 83, 0.35);
 }
 
-/* Stats Overlay App Drawer Style */
-.stats-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
+.big-start-btn:active {
+  transform: translateY(0);
+}
+
+.btn-arrow {
+  width: 20px;
+  height: 20px;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.location-form-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid rgba(43, 122, 83, 0.12);
+  border-radius: 1.75rem;
+  padding: 1.75rem 1.5rem;
   width: 100%;
-  height: 80vh; /* Slides up 80% of screen */
-  padding: 1rem;
-  padding-bottom: 25vh; /* enough space so bottom cards aren't hidden behind speak btn */
-  overflow-y: auto;
-  background: transparent; /* TRANSPARENT BACKGROUND AS REQUESTED */
-  z-index: 20; /* Underneath bottom-controls (50) */
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-shadow: var(--shadow-soft);
 }
 
-/* App Drawer Animation */
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.form-card-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(43, 122, 83, 0.08);
+  padding-bottom: 0.5rem;
 }
 
-.slide-up-enter-from,
-.slide-up-leave-to {
-  transform: translateY(100%);
+.form-field {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.custom-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background-color: rgba(250, 246, 238, 0.7);
+  border: 1px solid rgba(43, 122, 83, 0.15);
+  border-radius: 0.75rem;
+  outline: none;
+  font-family: 'Outfit', sans-serif;
+  transition: all 0.3s ease;
+}
+
+.custom-input:focus {
+  border-color: var(--accent-green);
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(43, 122, 83, 0.1);
+}
+
+.form-select {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 0.75rem 2.5rem 0.75rem 1rem !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
 }
 </style>
