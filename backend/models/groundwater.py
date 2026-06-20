@@ -20,3 +20,10 @@ class Groundwater(BaseModel):
     statusCode: int
     message: str
     data: Optional[List[GroundwaterDataPoint]] = None
+
+class GroundwaterMLResponse(BaseModel):
+    station: str
+    current_depth: float
+    predicted_depth: float
+    health_score: float
+    risk: str

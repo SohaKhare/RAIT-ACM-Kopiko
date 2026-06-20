@@ -4,23 +4,16 @@ from models.location import Location
 from services.mandi import get_mandi_data
 from services.weather import get_rainfall_data
 from services.groundwater import get_groundwater_data
-from models.groundwater import Groundwater
+from models.groundwater import Groundwater, GroundwaterMLResponse
+from services.groundwater_ml import predict_groundwater
 
 # Here we are aggregating all the data we gathered into a single pipeline.
 
-async def _get_crop_water_requirement(groundwater_resp: Groundwater):
+async def _get_crop_water_requirement(depth: float):
     """
     Parses groundwater depth and sorts crops from crop_water_requirements.json
     based on their drought tolerance and water requirements.
     """
-    # 1. Extract Groundwater Depth
-    depth = 0.0
-    if groundwater_resp and groundwater_resp.statusCode == 200 and groundwater_resp.data:
-        # We use abs() because your API returns negative values for depth (e.g., -9.095)
-        val = groundwater_resp.data[0].dataValue
-        if val is not None:
-            depth = abs(float(val))
-        
     # 2. Determine Water Status
     if depth > 30.0:
         gw_status = "critical"      # Water table is severely depleted
@@ -77,16 +70,22 @@ async def _aggregate_locational_data(location: Location):
 
     # 1. Gather all raw data
     mandi_data = get_mandi_data(state, district, mandi)
-    groundwater_data = get_groundwater_data(state, district)
+    # Get ML prediction
+    groundwater_data = predict_groundwater(state=state, district=district)
     weather_data = await get_rainfall_data(lat, lng)
 
-    # 2. Get AI-Sorted Crop Recommendations based on the groundwater we just fetched
-    # Parse the raw dictionary into our Pydantic model first!
-    groundwater_model = Groundwater(**groundwater_data)
-    crop_recommendations = await _get_crop_water_requirement(groundwater_model)
+    # 2. Process Groundwater Data & Get AI-Sorted Crop Recommendations
+    depth = 0.0
+    clean_groundwater = {}
+    if groundwater_data:
+        # Parse into ML Response model
+        gw_ml = GroundwaterMLResponse(**groundwater_data)
+        depth = gw_ml.current_depth
+        clean_groundwater = gw_ml.model_dump()
 
-    # 3. Clean up payloads to remove bulky API metadata
-    clean_groundwater = groundwater_data.get("data", [{}])[0] if groundwater_data.get("data") else {}
+    crop_recommendations = await _get_crop_water_requirement(depth)
+
+    # 3. Clean up Mandi Data
     # Safely extract mandi records (APIs sometimes return lists instead of dicts when empty)
     clean_mandi = []
     api_resp = mandi_data.get("api_response", {})
