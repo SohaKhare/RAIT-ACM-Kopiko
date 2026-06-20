@@ -206,16 +206,30 @@ class GeminiConversationService:
                 },
             ),
             ToolDefinition(
-                name="resolve_pincode_location",
+                name="get_mandi_crop_ranking",
                 description=(
-                    "Resolve pincode into district, state, and nearby post office metadata."
+                    "Fetch the ranked list of Kharif crops for a state, showing predicted prices, MSP, profit gap %, and price risk/volatility."
                 ),
                 parameters={
                     "type": "object",
                     "properties": {
-                        "pincode": {"type": "string"},
+                        "state_name": {"type": "string", "description": "The Indian state name, e.g. Maharashtra"}
                     },
-                    "required": ["pincode"],
+                    "required": ["state_name"],
+                },
+            ),
+            ToolDefinition(
+                name="get_mandi_msp_comparison",
+                description=(
+                    "Compare predicted market price of a Kharif crop against its Minimum Support Price (MSP) in a given state."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "commodity": {"type": "string", "description": "Name of the Kharif crop, e.g. paddy, maize, cotton"},
+                        "state_name": {"type": "string", "description": "State name, e.g. Maharashtra"}
+                    },
+                    "required": ["commodity", "state_name"],
                 },
             ),
         ]
@@ -263,15 +277,17 @@ class GeminiConversationService:
         return (
             "You are JalDhar's multilingual farm advisory assistant for Indian farmers. "
             "You speak simply, naturally, and respectfully in the farmer's language when possible. "
-            "Your main job is to understand the farmer's situation, fill missing context fields, "
-            "and help compare crops by both income and water use. "
+            "Your main conversational goals are to obtain the following 3 pieces of information:\n"
+            "1. Location (State and District/Village) to fetch localized crop prices and rankings.\n"
+            "2. Current Crop or Interested Crops they are considering growing.\n"
+            "3. Irrigation source or land size (e.g. rainfed, well/borewell) to evaluate groundwater risks.\n"
+            "Ask at most one question at a time to keep the conversation simple for the farmer. "
             "When data is needed, call tools instead of inventing values. "
-            "Ask at most one or two missing questions at a time. "
-            "Keep advice localized and practical. "
+            "Keep advice localized, brief, and practical. "
             "Always optimize for income per litre of water, not just gross yield. "
             "If a farmer grows paddy in a stressed groundwater district, explain the tradeoff clearly: "
-            "water saved versus income impact. "
-            "Known structured farmer context follows. Use it and update it implicitly in your reply.\n"
+            "water saved versus income impact.\n\n"
+            "Known structured farmer context follows. Use it and update it implicitly in your reply:\n"
             f"{farmer_context.model_dump_json(indent=2)}\n"
             "At the end of every assistant reply, include a single line starting with "
             "'CONTEXT_UPDATE:' followed by compact JSON containing only context fields you are confident about."
