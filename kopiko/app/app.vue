@@ -17,6 +17,18 @@ const stateName = ref('')
 const districtName = ref('')
 const availableMandis = ref<string[]>(['All Markets'])
 
+const farmerContext = ref({
+  preferred_language: null as string | null,
+  state_name: null as string | null,
+  district_name: null as string | null,
+  current_crop: null as string | null,
+  candidate_crop: null as string | null,
+  irrigation_source: null as string | null,
+  land_area_acres: null as number | null,
+})
+
+const conversationHistory = ref<Array<{ role: string; content: any }>>([])
+
 const questions = ['q1', 'q2']
 const userAnswers = ref<string[]>([])
 
@@ -162,6 +174,10 @@ const startListening = async () => {
       formData.append('lng', localStorage.getItem('userLng') || '0')
       formData.append('state', localStorage.getItem('userState') || '')
       formData.append('district', localStorage.getItem('userDistrict') || '')
+      
+      // Stateful context transmission
+      formData.append('context', JSON.stringify(farmerContext.value))
+      formData.append('history', JSON.stringify(conversationHistory.value))
 
       try {
         const res = await fetch(`${config.public.apiBase}/llm/audio`, {
@@ -175,34 +191,151 @@ const startListening = async () => {
         transcript.value = aiResponse
         displayText.value = aiResponse
         
+        // Save turn to history
+        conversationHistory.value.push({
+          role: 'user',
+          content: [{ type: 'text', text: '[Voice Input]' }]
+        })
+        conversationHistory.value.push({
+          role: 'assistant',
+          content: aiResponse
+        })
+
+        // Merge updated context fields from backend
+        let contextLanguage = null
+        if (data.updated_context) {
+          Object.assign(farmerContext.value, data.updated_context)
+          console.log('Updated Farmer Context:', farmerContext.value)
+          
+          if (data.updated_context.state_name) {
+            stateName.value = data.updated_context.state_name
+            localStorage.setItem('userState', stateName.value)
+          }
+          if (data.updated_context.district_name) {
+            districtName.value = data.updated_context.district_name
+            localStorage.setItem('userDistrict', districtName.value)
+          }
+
+          // Read preferred language from context
+          if (data.updated_context.preferred_language) {
+            const pref = data.updated_context.preferred_language.toLowerCase().trim()
+            if (pref === 'hindi' || pref === 'hi' || pref === 'hi-in') contextLanguage = 'hi-IN'
+            else if (pref === 'marathi' || pref === 'mr' || pref === 'mr-in') contextLanguage = 'mr-IN'
+            else if (pref === 'urdu' || pref === 'ur' || pref === 'ur-in') contextLanguage = 'ur-IN'
+            else if (pref === 'tamil' || pref === 'ta' || pref === 'ta-in') contextLanguage = 'ta-IN'
+            else if (pref === 'english' || pref === 'en' || pref === 'en-in') contextLanguage = 'en-IN'
+          }
+        }
+        
+        // Robust language auto-switching
+        if (contextLanguage && selectedLanguage.value !== contextLanguage) {
+          console.log(`Auto-switching frontend language to: ${contextLanguage}`)
+          selectedLanguage.value = contextLanguage
+          hasSelectedLanguage.value = true
+        }
+
+        // Check tool calls
+        let hasExecutedTool = false
+        if (data.tool_calls && data.tool_calls.length > 0) {
+          for (const call of data.tool_calls) {
+            console.log('Running tool call:', call)
+            if (call.name === 'get_mandi_crop_ranking') {
+              const stateArg = call.arguments.state_name || stateName.value
+              if (stateArg) {
+                try {
+                  const rankRes = await fetch(`${config.public.apiBase}/crop-ranking?state=${stateArg}`)
+                  const rankData = await rankRes.json()
+                  console.log('Tool crop ranking results:', rankData)
+                  
+                  isCompleted.value = true
+                  showStatsOverlay.value = true
+                  userAnswers.value[0] = 'All Mandis'
+                  userAnswers.value[1] = rankData.ranking[0]?.crop || 'paddy'
+                  
+                  if (rankData.ranking && rankData.ranking.length > 0) {
+                    const topCrop = rankData.ranking[0]
+                    const recommendationText = `Based on the latest mandi analysis, the best Kharif crop in ${stateArg} is ${topCrop.crop}, which has a predicted price of ₹${topCrop.predicted_price} per quintal, offering a ${topCrop.gap_pct}% margin above the MSP.`
+                    displayText.value = recommendationText
+                    speakText(recommendationText, selectedLanguage.value)
+                    hasExecutedTool = true
+                  }
+                } catch (err) {
+                  console.error('Failed to run crop ranking tool:', err)
+                }
+              }
+            } else if (call.name === 'get_mandi_msp_comparison') {
+              const cropArg = call.arguments.commodity
+              const stateArg = call.arguments.state_name || stateName.value
+              if (cropArg && stateArg) {
+                try {
+                  const compRes = await fetch(`${config.public.apiBase}/msp-comparison?commodity=${cropArg}&state=${stateArg}`)
+                  const compData = await compRes.json()
+                  console.log('Tool msp comparison results:', compData)
+                  
+                  isCompleted.value = true
+                  showStatsOverlay.value = true
+                  userAnswers.value[0] = 'Local Mandi'
+                  userAnswers.value[1] = cropArg
+                  
+                  const speech = `In ${stateArg}, the predicted price for ${cropArg} is ₹${compData.predicted_price}, which is ${compData.gap_pct}% ${compData.gap_pct >= 0 ? 'above' : 'below'} the Minimum Support Price of ₹${compData.msp}.`
+                  displayText.value = speech
+                  speakText(speech, selectedLanguage.value)
+                  hasExecutedTool = true
+                } catch (err) {
+                  console.error('Failed to run msp comparison tool:', err)
+                }
+              }
+            } else if (call.name === 'switch_language') {
+              const target = call.arguments.target_language
+              console.log('LLM requested language switch to:', target)
+              let langCode = null
+              if (target === 'Hindi') langCode = 'hi-IN'
+              else if (target === 'Marathi') langCode = 'mr-IN'
+              else if (target === 'Urdu') langCode = 'ur-IN'
+              else if (target === 'Tamil') langCode = 'ta-IN'
+              else if (target === 'English') langCode = 'en-IN'
+              
+              if (langCode) {
+                console.log('Executing frontend language switch to:', langCode)
+                selectedLanguage.value = langCode
+                hasSelectedLanguage.value = true
+                if (activeStep.value === -1) {
+                  activeStep.value = 0
+                }
+              }
+            }
+          }
+        }
+        
+        // Language Select screen voice matching fallback
         if (activeStep.value === -1) {
-           const lower = aiResponse.toLowerCase()
-           if (lower.includes('hindi')) selectLanguage('hi-IN')
-           else if (lower.includes('marathi')) selectLanguage('mr-IN')
-           else if (lower.includes('urdu')) selectLanguage('ur-IN')
-           else if (lower.includes('tamil')) selectLanguage('ta-IN')
-           else selectLanguage('en-IN') // default
+           const lowerResponse = aiResponse.toLowerCase()
+           let matchedLang = contextLanguage
+           
+           if (!matchedLang) {
+             if (lowerResponse.includes('hindi') || lowerResponse.includes('हिंदी')) matchedLang = 'hi-IN'
+             else if (lowerResponse.includes('marathi') || lowerResponse.includes('मराठी')) matchedLang = 'mr-IN'
+             else if (lowerResponse.includes('urdu') || lowerResponse.includes('اردو')) matchedLang = 'ur-IN'
+             else if (lowerResponse.includes('tamil') || lowerResponse.includes('தமிழ்')) matchedLang = 'ta-IN'
+             else if (lowerResponse.includes('english')) matchedLang = 'en-IN'
+           }
+           
+           if (matchedLang) {
+             selectLanguage(matchedLang)
+           } else {
+             selectLanguage('en-IN') // default fallback
+           }
            micState.value = 'idle'
            return
         }
         
         userAnswers.value.push(aiResponse)
-        
         micState.value = 'idle'
         transcript.value = ''
         
-        // Move to next step
-        if (activeStep.value < questions.length - 1) {
-          activeStep.value++
-          askCurrentQuestion()
-        } else {
-          isCompleted.value = true
-          showStatsOverlay.value = true // Automatically show stats
-          
-          const helloText = translateCardText('hello', selectedLanguage.value)
-          const swipeDownText = translateCardText('swipe_down', selectedLanguage.value)
-          displayText.value = helloText
-          speakText(`${helloText}. ${swipeDownText}`, selectedLanguage.value)
+        // Speak response if we did not execute a data card presentation tool
+        if (!hasExecutedTool) {
+          speakText(aiResponse, selectedLanguage.value)
         }
         
       } catch (e) {
@@ -542,7 +675,7 @@ const handleSpeakClick = () => {
   background: transparent;
   color: var(--text-primary);
   border: 1px solid var(--text-primary);
-  border-radius: 9999px;
+  border-radius: 10px;
   padding: 0.5rem 1rem;
   font-size: 1rem;
   cursor: pointer;
